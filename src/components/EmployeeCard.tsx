@@ -5,7 +5,7 @@
 
 import React from 'react';
 import type { TimeEntry } from '../types';
-import { formatDuration, formatDurationShort, elapsedSince } from '../utils/time';
+import { formatDuration, formatDurationShort } from '../utils/time';
 import { useTimer } from '../hooks/useTimer';
 
 interface Props {
