@@ -1,48 +1,34 @@
 // ============================================================
-// Central app state — context + reducer + persistence
+// Central app state — context + reducer + hybrid persistence
+// Loads from Supabase on init, writes to both Supabase + localStorage
 // ============================================================
 
-import React, { createContext, useContext, useReducer, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useReducer, useEffect, useCallback, useRef } from 'react';
 import { v4 as uuid } from 'uuid';
 import type { AppState, AppAction, TimeEntry } from '../types';
-import { DEFAULT_TASKS, DEFAULT_SETTINGS } from '../utils/defaults';
+import { DEFAULT_SETTINGS } from '../utils/defaults';
 import { getToday, calcDuration } from '../utils/time';
-import * as storage from '../storage/localStorage';
+import * as storage from '../storage';
+import * as local from '../storage/localStorage';
+import { useAuth } from './AuthContext';
 
-// ---- Initial state ----
+// ---- Default state (shown while loading) ----
 
-function buildInitialState(): AppState {
-  const today = getToday();
-  const savedTasks = storage.loadTasks();
-  const tasks = savedTasks.length > 0 ? savedTasks : DEFAULT_TASKS;
-
-  // On first load, save default tasks
-  if (savedTasks.length === 0) {
-    storage.saveTasks(DEFAULT_TASKS);
-  }
-
-  const savedSettings = storage.loadSettings();
-  const settings = savedSettings ?? DEFAULT_SETTINGS;
-  if (!savedSettings) storage.saveSettings(DEFAULT_SETTINGS);
-
-  const entries = storage.loadEntries(today);
-  const activeEntryId = storage.loadActiveEntryId();
-  const lastTaskId = storage.loadLastTaskId();
-  const dailyNote = storage.loadDailyNote(today);
-
+function getDefaultState(): AppState {
   return {
-    tasks,
-    entries,
-    activeEntryId,
-    lastTaskId,
-    currentDate: today,
-    dailyNote,
-    settings,
+    tasks: [],
+    entries: [],
+    activeEntryId: null,
+    lastTaskId: null,
+    currentDate: getToday(),
+    dailyNote: '',
+    settings: DEFAULT_SETTINGS,
     view: 'dashboard',
+    loading: true,
   };
 }
 
-// ---- Reducer ----
+// ---- Reducer (unchanged logic, just added loading) ----
 
 function appReducer(state: AppState, action: AppAction): AppState {
   switch (action.type) {
@@ -54,11 +40,9 @@ function appReducer(state: AppState, action: AppAction): AppState {
       let entries = [...state.entries];
       let lastTaskId = state.lastTaskId;
 
-      // If there's an active entry, close it
       if (state.activeEntryId) {
         const activeIdx = entries.findIndex(e => e.id === state.activeEntryId);
         if (activeIdx >= 0) {
-          // If clicking the same active task, treat as "stop"
           if (entries[activeIdx].taskId === action.taskId) {
             entries[activeIdx] = {
               ...entries[activeIdx],
@@ -68,7 +52,6 @@ function appReducer(state: AppState, action: AppAction): AppState {
             lastTaskId = entries[activeIdx].taskId;
             return { ...state, entries, activeEntryId: null, lastTaskId };
           }
-          // Close previous entry
           entries[activeIdx] = {
             ...entries[activeIdx],
             endTime: now,
@@ -78,7 +61,6 @@ function appReducer(state: AppState, action: AppAction): AppState {
         }
       }
 
-      // Create new entry
       const newEntry: TimeEntry = {
         id: uuid(),
         taskId: action.taskId,
@@ -113,18 +95,15 @@ function appReducer(state: AppState, action: AppAction): AppState {
 
     case 'RESUME_LAST_TASK': {
       if (!state.lastTaskId) return state;
-      // Delegate to START_TASK
       return appReducer(state, { type: 'START_TASK', taskId: state.lastTaskId });
     }
 
     case 'ADD_TASK': {
-      const tasks = [...state.tasks, action.task];
-      return { ...state, tasks };
+      return { ...state, tasks: [...state.tasks, action.task] };
     }
 
     case 'UPDATE_TASK': {
       const tasks = state.tasks.map(t => t.id === action.task.id ? action.task : t);
-      // Also update task name in today's entries
       const entries = state.entries.map(e =>
         e.taskId === action.task.id ? { ...e, taskName: action.task.name } : e
       );
@@ -133,7 +112,6 @@ function appReducer(state: AppState, action: AppAction): AppState {
 
     case 'DELETE_TASK': {
       const tasks = state.tasks.filter(t => t.id !== action.taskId);
-      // Stop the task if it's active
       let newState = state;
       const activeEntry = state.entries.find(e => e.id === state.activeEntryId);
       if (activeEntry?.taskId === action.taskId) {
@@ -181,27 +159,18 @@ function appReducer(state: AppState, action: AppAction): AppState {
     case 'NEW_DAY': {
       const today = getToday();
       if (today === state.currentDate) return state;
-
-      // Stop any active task first
       let newState = state;
       if (state.activeEntryId) {
         newState = appReducer(state, { type: 'STOP_TASK' });
       }
-
-      // Save current day's entries
-      storage.saveEntries(newState.currentDate, newState.entries);
-      storage.addTrackedDate(newState.currentDate);
-
-      // Load new day
-      const entries = storage.loadEntries(today);
-      const dailyNote = storage.loadDailyNote(today);
-
+      // Entries for new day will be loaded async in the effect
       return {
         ...newState,
         currentDate: today,
-        entries,
-        dailyNote,
+        entries: [],
+        dailyNote: '',
         activeEntryId: null,
+        loading: true,
       };
     }
 
@@ -210,7 +179,6 @@ function appReducer(state: AppState, action: AppAction): AppState {
     }
 
     case 'DUPLICATE_YESTERDAY': {
-      // This just ensures the same tasks are available — tasks are already global
       return state;
     }
 
@@ -230,20 +198,115 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | null>(null);
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
-  const [state, dispatch] = useReducer(appReducer, undefined, buildInitialState);
+  const { user } = useAuth();
+  const userId = user?.id ?? '';
+  const [state, dispatch] = useReducer(appReducer, undefined, getDefaultState);
+  const prevStateRef = useRef<AppState | null>(null);
+  const initializedRef = useRef(false);
 
-  // Persist on every state change
+  // ---- Async initialization: load from Supabase ----
   useEffect(() => {
-    storage.saveTasks(state.tasks);
-    storage.saveEntries(state.currentDate, state.entries);
-    storage.saveSettings(state.settings);
-    storage.saveActiveEntryId(state.activeEntryId);
-    storage.saveLastTaskId(state.lastTaskId);
-    storage.saveDailyNote(state.currentDate, state.dailyNote);
-    storage.addTrackedDate(state.currentDate);
-  }, [state]);
+    if (!userId || initializedRef.current) return;
+    initializedRef.current = true;
 
-  // Check for day change every minute
+    const init = async () => {
+      const today = getToday();
+
+      const [tasks, entries, settings, dailyNote, activeEntryId] = await Promise.all([
+        storage.loadTasks(userId),
+        storage.loadEntries(userId, today),
+        storage.loadSettings(userId),
+        storage.loadDailyNote(userId, today),
+        storage.loadActiveEntryId(userId, today),
+      ]);
+
+      const lastTaskId = local.loadLastTaskId();
+
+      dispatch({
+        type: 'LOAD_STATE',
+        state: {
+          tasks,
+          entries,
+          settings: settings ?? DEFAULT_SETTINGS,
+          dailyNote,
+          activeEntryId,
+          lastTaskId,
+          currentDate: today,
+          loading: false,
+        },
+      });
+    };
+
+    init();
+  }, [userId]);
+
+  // ---- Persist changes to hybrid storage (debounced Supabase + instant localStorage) ----
+  useEffect(() => {
+    if (!userId || state.loading) return;
+
+    const prev = prevStateRef.current;
+    prevStateRef.current = state;
+
+    // Skip the first render after init (data just loaded from Supabase)
+    if (!prev || prev.loading) return;
+
+    // Only persist what changed
+    if (prev.tasks !== state.tasks) {
+      storage.saveTasks(userId, state.tasks);
+      // Handle deletes: find tasks removed from the list
+      const removedIds = prev.tasks
+        .filter(t => !state.tasks.find(s => s.id === t.id))
+        .map(t => t.id);
+      removedIds.forEach(id => storage.deleteTask(userId, id));
+    }
+
+    if (prev.entries !== state.entries) {
+      storage.saveEntries(userId, state.currentDate, state.entries);
+      // Handle deletes
+      const removedIds = prev.entries
+        .filter(e => !state.entries.find(s => s.id === e.id))
+        .map(e => e.id);
+      removedIds.forEach(id => storage.deleteEntry(id));
+    }
+
+    if (prev.settings !== state.settings) {
+      storage.saveSettings(userId, state.settings);
+    }
+
+    if (prev.dailyNote !== state.dailyNote) {
+      storage.saveDailyNote(userId, state.currentDate, state.dailyNote);
+    }
+
+    if (prev.activeEntryId !== state.activeEntryId) {
+      storage.saveActiveEntryId(state.activeEntryId);
+    }
+
+    if (prev.lastTaskId !== state.lastTaskId) {
+      storage.saveLastTaskId(state.lastTaskId);
+    }
+
+    storage.addTrackedDate(state.currentDate);
+  }, [state, userId]);
+
+  // ---- Load new day's data when day changes ----
+  useEffect(() => {
+    if (!userId || !state.loading) return;
+    // state.loading is true after NEW_DAY action — fetch new day's data
+    const loadNewDay = async () => {
+      const [entries, dailyNote, activeEntryId] = await Promise.all([
+        storage.loadEntries(userId, state.currentDate),
+        storage.loadDailyNote(userId, state.currentDate),
+        storage.loadActiveEntryId(userId, state.currentDate),
+      ]);
+      dispatch({
+        type: 'LOAD_STATE',
+        state: { entries, dailyNote, activeEntryId, loading: false },
+      });
+    };
+    loadNewDay();
+  }, [state.currentDate, state.loading, userId]);
+
+  // ---- Check for day change every minute ----
   useEffect(() => {
     const interval = setInterval(() => {
       const today = getToday();
@@ -254,12 +317,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return () => clearInterval(interval);
   }, [state.currentDate]);
 
-  // Warn before closing with active task
+  // ---- Warn before closing with active task ----
   useEffect(() => {
     const handler = (e: BeforeUnloadEvent) => {
-      if (state.activeEntryId) {
-        e.preventDefault();
-      }
+      if (state.activeEntryId) e.preventDefault();
     };
     window.addEventListener('beforeunload', handler);
     return () => window.removeEventListener('beforeunload', handler);

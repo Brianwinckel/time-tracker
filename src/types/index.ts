@@ -50,7 +50,8 @@ export interface AppState {
   currentDate: string;       // YYYY-MM-DD
   dailyNote: string;
   settings: Settings;
-  view: 'dashboard' | 'summary' | 'settings' | 'history';
+  view: 'dashboard' | 'summary' | 'settings' | 'history' | 'manager' | 'admin';
+  loading: boolean;        // true while initial data is loading from Supabase
 }
 
 // Actions for the reducer

@@ -3,6 +3,7 @@
 // ============================================================
 
 import React from 'react';
+import { useApp } from '../context/AppContext';
 import { TaskGrid } from './TaskGrid';
 import { ActiveTaskBar } from './ActiveTaskBar';
 import { SessionLog } from './SessionLog';
@@ -10,6 +11,12 @@ import { DailyNote } from './DailyNote';
 import { ManualEntryForm } from './ManualEntryForm';
 
 export const Dashboard: React.FC = () => {
+  const { state } = useApp();
+
+  if (state.loading) {
+    return <div className="loading-screen">Loading your tasks...</div>;
+  }
+
   return (
     <div className="dashboard">
       <ActiveTaskBar />

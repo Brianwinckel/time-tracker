@@ -6,7 +6,8 @@
 import React, { useState, useEffect } from 'react';
 import { v4 as uuid } from 'uuid';
 import { useApp } from '../context/AppContext';
-import * as storage from '../storage/localStorage';
+import { useAuth } from '../context/AuthContext';
+import * as storage from '../storage';
 import type { TimeEntry } from '../types';
 import {
   formatTime,
@@ -29,6 +30,8 @@ import { formatDurationShort } from '../utils/time';
 
 export const BackdateBuilder: React.FC = () => {
   const { state } = useApp();
+  const { user } = useAuth();
+  const userId = user?.id ?? '';
   const [date, setDate] = useState('');
   const [entries, setEntries] = useState<TimeEntry[]>([]);
   const [dailyNote, setDailyNote] = useState('');
@@ -44,11 +47,17 @@ export const BackdateBuilder: React.FC = () => {
 
   // Load existing entries if the date has data
   useEffect(() => {
-    if (!date) return;
-    const existing = storage.loadEntries(date);
-    setEntries(existing);
-    setDailyNote(storage.loadDailyNote(date));
-  }, [date]);
+    if (!date || !userId) return;
+    const load = async () => {
+      const [existing, note] = await Promise.all([
+        storage.loadEntries(userId, date),
+        storage.loadDailyNote(userId, date),
+      ]);
+      setEntries(existing);
+      setDailyNote(note);
+    };
+    load();
+  }, [date, userId]);
 
   const handleAddEntry = (e: React.FormEvent) => {
     e.preventDefault();
@@ -78,7 +87,7 @@ export const BackdateBuilder: React.FC = () => {
     setEntries(updated);
 
     // Persist immediately
-    storage.saveEntries(date, updated);
+    storage.saveEntries(userId, date, updated);
     storage.addTrackedDate(date);
 
     // Reset form but keep task selected for quick repeat
@@ -91,11 +100,12 @@ export const BackdateBuilder: React.FC = () => {
     if (!confirm('Delete this entry?')) return;
     const updated = entries.filter(e => e.id !== entryId);
     setEntries(updated);
-    storage.saveEntries(date, updated);
+    storage.saveEntries(userId, date, updated);
+    storage.deleteEntry(entryId);
   };
 
   const handleSaveNote = () => {
-    if (date) storage.saveDailyNote(date, dailyNote);
+    if (date && userId) storage.saveDailyNote(userId, date, dailyNote);
   };
 
   const completedEntries = entries.filter(e => e.endTime);
