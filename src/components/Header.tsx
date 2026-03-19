@@ -1,14 +1,16 @@
 // ============================================================
-// App header — navigation and date display
+// App header — navigation, date, user info, sign out
 // ============================================================
 
 import React from 'react';
 import { useApp } from '../context/AppContext';
+import { useAuth } from '../context/AuthContext';
 import { formatDateLong } from '../utils/time';
 import type { AppState } from '../types';
 
 export const Header: React.FC = () => {
   const { state, dispatch } = useApp();
+  const { profile, signOut } = useAuth();
 
   const navItems: { view: AppState['view']; label: string }[] = [
     { view: 'dashboard', label: 'Tracker' },
@@ -42,6 +44,15 @@ export const Header: React.FC = () => {
         >
           {state.settings.darkMode ? '☀' : '☾'}
         </button>
+
+        {profile && (
+          <div className="header__user">
+            <span className="header__user-name">{profile.name || profile.email}</span>
+            <button className="header__signout" onClick={signOut}>
+              Sign out
+            </button>
+          </div>
+        )}
       </nav>
     </header>
   );
