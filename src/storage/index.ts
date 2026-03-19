@@ -33,7 +33,7 @@ export function saveTasks(userId: string, tasks: Task[]): void {
   debounce('tasks', () => remote.saveTasks(userId, tasks));
 }
 
-export function deleteTask(userId: string, taskId: string): void {
+export function deleteTask(_userId: string, taskId: string): void {
   debounce(`delete-task-${taskId}`, () => remote.deleteTask(taskId));
 }
 
