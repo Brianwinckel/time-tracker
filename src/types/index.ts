@@ -40,6 +40,8 @@ export interface Settings {
   timeFormat: '12h' | '24h';
   darkMode: boolean;
   idleWarningMinutes: number;
+  autoEmailEnabled: boolean;
+  autoEmailRecipient: string;
 }
 
 export interface AppState {

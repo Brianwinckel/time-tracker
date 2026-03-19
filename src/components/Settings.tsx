@@ -1,12 +1,14 @@
 // ============================================================
-// Settings screen — email template, preferences
+// Settings screen — email template, auto-email, preferences
 // ============================================================
 
 import React from 'react';
 import { useApp } from '../context/AppContext';
+import { useAuth } from '../context/AuthContext';
 
 export const Settings: React.FC = () => {
   const { state, dispatch } = useApp();
+  const { signOut } = useAuth();
   const s = state.settings;
 
   const update = (patch: Partial<typeof s>) => {
@@ -70,6 +72,35 @@ export const Settings: React.FC = () => {
       </section>
 
       <section className="settings__section">
+        <h3>Auto Daily Email</h3>
+        <p className="settings__info">
+          Automatically send your daily work summary to your boss at the end of the day.
+        </p>
+
+        <label className="field field--checkbox">
+          <input
+            type="checkbox"
+            checked={s.autoEmailEnabled}
+            onChange={e => update({ autoEmailEnabled: e.target.checked })}
+          />
+          <span>Enable automatic daily email</span>
+        </label>
+
+        {s.autoEmailEnabled && (
+          <label className="field">
+            <span>Recipient Email</span>
+            <input
+              type="email"
+              value={s.autoEmailRecipient}
+              onChange={e => update({ autoEmailRecipient: e.target.value })}
+              placeholder="boss@company.com"
+            />
+            <small className="field__hint">The email address to receive your daily summary</small>
+          </label>
+        )}
+      </section>
+
+      <section className="settings__section">
         <h3>Preferences</h3>
 
         <label className="field">
@@ -115,20 +146,20 @@ export const Settings: React.FC = () => {
       </section>
 
       <section className="settings__section">
-        <h3>Data</h3>
+        <h3>Account</h3>
         <p className="settings__info">
-          All data is stored locally in your browser. Nothing is sent to any server.
+          Your data is synced to the cloud. Sign out to switch accounts or clear local cache.
         </p>
         <button
           className="btn btn--danger-outline"
           onClick={() => {
-            if (confirm('This will delete ALL your data. Are you sure?')) {
+            if (confirm('Sign out and clear local cache?')) {
               localStorage.clear();
-              window.location.reload();
+              signOut();
             }
           }}
         >
-          Reset All Data
+          Sign Out & Clear Cache
         </button>
       </section>
     </div>

@@ -140,6 +140,8 @@ export async function loadSettings(userId: string): Promise<Settings | null> {
     timeFormat: data.time_format as '12h' | '24h',
     darkMode: data.dark_mode,
     idleWarningMinutes: data.idle_warning_minutes,
+    autoEmailEnabled: data.auto_email_enabled ?? false,
+    autoEmailRecipient: data.auto_email_recipient ?? '',
   };
 }
 
@@ -156,6 +158,8 @@ export async function saveSettings(userId: string, settings: Settings): Promise<
       time_format: settings.timeFormat,
       dark_mode: settings.darkMode,
       idle_warning_minutes: settings.idleWarningMinutes,
+      auto_email_enabled: settings.autoEmailEnabled,
+      auto_email_recipient: settings.autoEmailRecipient,
     }, { onConflict: 'user_id' });
 
   if (error) console.error('Failed to save settings:', error.message);

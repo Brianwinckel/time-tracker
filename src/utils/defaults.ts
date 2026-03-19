@@ -28,4 +28,6 @@ export const DEFAULT_SETTINGS: Settings = {
   timeFormat: '12h',
   darkMode: false,
   idleWarningMinutes: 15,
+  autoEmailEnabled: false,
+  autoEmailRecipient: '',
 };
