@@ -1548,3 +1548,352 @@ body {
   color: var(--text-secondary);
   font-weight: 500;
 }
+
+/* ---- Admin Panel ---- */
+
+.admin {
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+.admin h2 {
+  font-size: 1.3rem;
+  margin-bottom: 16px;
+}
+
+.admin__tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0;
+}
+
+.admin__tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 8px 16px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s;
+}
+
+.admin__tab:hover {
+  color: var(--text-primary);
+}
+
+.admin__tab--active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+/* ---- Team Editor ---- */
+
+.team-editor__layout {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 20px;
+  align-items: start;
+}
+
+.team-editor__sidebar {
+  background: var(--bg-secondary);
+  border-radius: var(--radius);
+  padding: 16px;
+  box-shadow: var(--shadow-sm);
+}
+
+.team-editor__sidebar h3 {
+  font-size: 1rem;
+  margin-bottom: 12px;
+  color: var(--text-secondary);
+}
+
+.team-editor__list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.team-editor__team-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.team-editor__team-item:hover {
+  background: var(--bg-tertiary);
+}
+
+.team-editor__team-item--selected {
+  background: var(--bg-tertiary);
+  border-left: 3px solid var(--accent);
+}
+
+.team-editor__team-name {
+  flex: 1;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.team-editor__team-actions {
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.team-editor__team-item:hover .team-editor__team-actions {
+  opacity: 1;
+}
+
+.team-editor__rename {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  width: 100%;
+}
+
+.team-editor__rename input {
+  flex: 1;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 0.85rem;
+  font-family: inherit;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+.team-editor__add-team {
+  display: flex;
+  gap: 6px;
+}
+
+.team-editor__add-team input {
+  flex: 1;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+  font-family: inherit;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+.team-editor__tasks {
+  background: var(--bg-secondary);
+  border-radius: var(--radius);
+  padding: 20px;
+  box-shadow: var(--shadow-sm);
+}
+
+.team-editor__tasks h3 {
+  font-size: 1rem;
+  margin-bottom: 4px;
+}
+
+.team-editor__hint {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+}
+
+.team-editor__task-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.team-editor__task-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  background: var(--bg-primary);
+  border-radius: var(--radius-sm);
+}
+
+.team-editor__task-color {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.team-editor__task-row .team-editor__task-name {
+  flex: 1;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.team-editor__task-colors {
+  display: flex;
+  gap: 3px;
+}
+
+.color-swatch--mini {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  border: 2px solid transparent;
+}
+
+.color-picker--inline {
+  display: flex;
+  gap: 3px;
+}
+
+.team-editor__add-task {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.team-editor__add-task input {
+  flex: 1;
+  min-width: 140px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+  font-family: inherit;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+.team-editor__empty {
+  color: var(--text-muted);
+  text-align: center;
+  padding: 40px;
+}
+
+/* ---- User Table ---- */
+
+.user-table h3 {
+  font-size: 1rem;
+  color: var(--text-secondary);
+  margin-bottom: 16px;
+}
+
+.user-table__grid {
+  background: var(--bg-secondary);
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+}
+
+.user-table__header {
+  display: grid;
+  grid-template-columns: 1fr 1.5fr 120px 140px;
+  gap: 12px;
+  padding: 10px 16px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid var(--border);
+}
+
+.user-table__row {
+  display: grid;
+  grid-template-columns: 1fr 1.5fr 120px 140px;
+  gap: 12px;
+  padding: 10px 16px;
+  align-items: center;
+  border-bottom: 1px solid var(--bg-tertiary);
+  font-size: 0.88rem;
+}
+
+.user-table__row--saving {
+  opacity: 0.5;
+}
+
+.user-table__name {
+  font-weight: 500;
+}
+
+.user-table__email {
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+}
+
+.user-table__select {
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 0.82rem;
+  font-family: inherit;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+.user-table__empty {
+  padding: 30px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+/* ---- Invite Form ---- */
+
+.invite-form h3 {
+  font-size: 1rem;
+  margin-bottom: 8px;
+}
+
+.invite-form__desc {
+  font-size: 0.88rem;
+  color: var(--text-muted);
+  margin-bottom: 20px;
+}
+
+.invite-form__form {
+  background: var(--bg-secondary);
+  border-radius: var(--radius);
+  padding: 20px;
+  box-shadow: var(--shadow-sm);
+  max-width: 480px;
+}
+
+.invite-form__result {
+  margin-top: 12px;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 0.88rem;
+}
+
+.invite-form__result--success {
+  background: rgba(80, 184, 108, 0.1);
+  color: var(--success);
+  border: 1px solid rgba(80, 184, 108, 0.3);
+}
+
+.invite-form__result--error {
+  background: rgba(232, 93, 117, 0.1);
+  color: var(--danger);
+  border: 1px solid rgba(232, 93, 117, 0.3);
+}
+
+@media (max-width: 768px) {
+  .team-editor__layout {
+    grid-template-columns: 1fr;
+  }
+
+  .user-table__header,
+  .user-table__row {
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+}

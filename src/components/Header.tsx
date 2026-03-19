@@ -13,11 +13,13 @@ export const Header: React.FC = () => {
   const { profile, signOut } = useAuth();
 
   const isManagerOrAdmin = profile?.role === 'manager' || profile?.role === 'admin';
+  const isAdmin = profile?.role === 'admin';
 
   const navItems: { view: AppState['view']; label: string; show: boolean }[] = [
     { view: 'dashboard', label: 'Tracker', show: true },
     { view: 'summary', label: 'Summary', show: true },
     { view: 'manager', label: 'Team', show: isManagerOrAdmin },
+    { view: 'admin', label: 'Admin', show: isAdmin },
     { view: 'history', label: 'Backdate', show: true },
     { view: 'settings', label: 'Settings', show: true },
   ];
