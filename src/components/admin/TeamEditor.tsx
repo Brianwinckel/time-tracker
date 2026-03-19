@@ -30,7 +30,7 @@ export const TeamEditor: React.FC = () => {
 
   // New task form
   const [newTaskName, setNewTaskName] = useState('');
-  const [newTaskColor, setNewTaskColor] = useState(TASK_COLORS[0]);
+  const [newTaskColor, setNewTaskColor] = useState<string>(TASK_COLORS[0]);
 
   // Edit team name
   const [editingTeamId, setEditingTeamId] = useState<string | null>(null);
