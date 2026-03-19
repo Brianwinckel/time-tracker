@@ -9,6 +9,7 @@ import { Settings } from './components/Settings';
 import { BackdateBuilder } from './components/BackdateBuilder';
 import { AuthScreen } from './components/AuthScreen';
 import { TeamSelector } from './components/TeamSelector';
+import { ManagerDashboard } from './components/ManagerDashboard';
 
 // Inner content — only rendered when authenticated + has team
 const AppContent: React.FC = () => {
@@ -28,6 +29,7 @@ const AppContent: React.FC = () => {
       <main className="main">
         {state.view === 'dashboard' && <Dashboard />}
         {state.view === 'summary' && <DailySummary />}
+        {state.view === 'manager' && <ManagerDashboard />}
         {state.view === 'history' && <BackdateBuilder />}
         {state.view === 'settings' && <Settings />}
       </main>

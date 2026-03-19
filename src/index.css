@@ -1345,3 +1345,206 @@ body {
   color: var(--text-muted);
   font-size: 1.1rem;
 }
+
+/* ---- Manager Dashboard ---- */
+
+.manager {
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+.manager__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.manager__header h2 {
+  font-size: 1.3rem;
+}
+
+.manager__stats {
+  display: flex;
+  gap: 20px;
+}
+
+.manager__stat {
+  text-align: center;
+}
+
+.manager__stat-value {
+  display: block;
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.manager__stat-value--active {
+  color: var(--success);
+}
+
+.manager__stat-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.manager__date-picker {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.manager__date-picker .field {
+  margin-bottom: 0;
+  max-width: 200px;
+}
+
+.manager__date-label {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  padding-bottom: 8px;
+}
+
+.manager__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.manager__loading,
+.manager__empty {
+  color: var(--text-muted);
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 40px;
+}
+
+.manager__detail {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.manager__detail-name {
+  font-size: 1.2rem;
+}
+
+.manager__detail-totals,
+.manager__detail-log {
+  background: var(--bg-secondary);
+  border-radius: var(--radius);
+  padding: 20px;
+  box-shadow: var(--shadow-sm);
+}
+
+.manager__detail-totals h4,
+.manager__detail-log h4 {
+  font-size: 1rem;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+}
+
+/* ---- Employee Card ---- */
+
+.employee-card {
+  background: var(--bg-secondary);
+  border-radius: var(--radius);
+  padding: 16px;
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  transition: all 0.15s;
+  border-left: 4px solid var(--border);
+}
+
+.employee-card:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+.employee-card--active {
+  border-left-color: var(--success);
+}
+
+.employee-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.employee-card__status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.employee-card__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.employee-card__dot--active {
+  background: var(--success);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.employee-card__name {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.employee-card__sessions {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.employee-card__active {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 8px;
+}
+
+.employee-card__task-name {
+  font-weight: 500;
+  color: var(--accent);
+}
+
+.employee-card__task-note {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.employee-card__timer {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.employee-card__idle {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  margin-bottom: 8px;
+}
+
+.employee-card__footer {
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+}
+
+.employee-card__total {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}

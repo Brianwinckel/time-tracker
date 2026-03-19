@@ -12,11 +12,14 @@ export const Header: React.FC = () => {
   const { state, dispatch } = useApp();
   const { profile, signOut } = useAuth();
 
-  const navItems: { view: AppState['view']; label: string }[] = [
-    { view: 'dashboard', label: 'Tracker' },
-    { view: 'summary', label: 'Summary' },
-    { view: 'history', label: 'Backdate' },
-    { view: 'settings', label: 'Settings' },
+  const isManagerOrAdmin = profile?.role === 'manager' || profile?.role === 'admin';
+
+  const navItems: { view: AppState['view']; label: string; show: boolean }[] = [
+    { view: 'dashboard', label: 'Tracker', show: true },
+    { view: 'summary', label: 'Summary', show: true },
+    { view: 'manager', label: 'Team', show: isManagerOrAdmin },
+    { view: 'history', label: 'Backdate', show: true },
+    { view: 'settings', label: 'Settings', show: true },
   ];
 
   return (
@@ -27,7 +30,7 @@ export const Header: React.FC = () => {
       </div>
 
       <nav className="header__nav">
-        {navItems.map(item => (
+        {navItems.filter(item => item.show).map(item => (
           <button
             key={item.view}
             className={`header__nav-btn ${state.view === item.view ? 'header__nav-btn--active' : ''}`}
