@@ -18,6 +18,7 @@ export const AddTaskModal: React.FC<Props> = ({ onClose }) => {
   const [name, setName] = useState('');
   const [color, setColor] = useState(getNextColor(usedColors));
   const [isPinned, setIsPinned] = useState(true);
+  const [timerMinutes, setTimerMinutes] = useState(0);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,6 +34,7 @@ export const AddTaskModal: React.FC<Props> = ({ onClose }) => {
         isPinned,
         createdAt: new Date().toISOString(),
         order: state.tasks.length,
+        timerMinutes,
       },
     });
     onClose();
@@ -68,6 +70,19 @@ export const AddTaskModal: React.FC<Props> = ({ onClose }) => {
                 />
               ))}
             </div>
+          </label>
+
+          <label className="field">
+            <span>Timer (minutes)</span>
+            <input
+              type="number"
+              value={timerMinutes}
+              onChange={e => setTimerMinutes(Math.max(0, parseInt(e.target.value) || 0))}
+              min={0}
+              max={480}
+              step={5}
+            />
+            <small className="field__hint">Set a countdown timer with push reminder (0 = no timer)</small>
           </label>
 
           <label className="field field--checkbox">

@@ -17,6 +17,7 @@ export const EditTaskModal: React.FC<Props> = ({ task, onClose }) => {
   const [name, setName] = useState(task.name);
   const [color, setColor] = useState(task.color);
   const [isPinned, setIsPinned] = useState(task.isPinned);
+  const [timerMinutes, setTimerMinutes] = useState(task.timerMinutes ?? 0);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -25,7 +26,7 @@ export const EditTaskModal: React.FC<Props> = ({ task, onClose }) => {
 
     dispatch({
       type: 'UPDATE_TASK',
-      task: { ...task, name: name.trim(), color, isPinned },
+      task: { ...task, name: name.trim(), color, isPinned, timerMinutes },
     });
     onClose();
   };
@@ -68,6 +69,19 @@ export const EditTaskModal: React.FC<Props> = ({ task, onClose }) => {
                 />
               ))}
             </div>
+          </label>
+
+          <label className="field">
+            <span>Timer (minutes)</span>
+            <input
+              type="number"
+              value={timerMinutes}
+              onChange={e => setTimerMinutes(Math.max(0, parseInt(e.target.value) || 0))}
+              min={0}
+              max={480}
+              step={5}
+            />
+            <small className="field__hint">Set to 0 for no timer. Tasks with a timer will show a countdown and send a push reminder when time is up.</small>
           </label>
 
           <label className="field field--checkbox">

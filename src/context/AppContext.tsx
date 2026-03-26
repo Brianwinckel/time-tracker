@@ -9,8 +9,39 @@ import type { AppState, AppAction, TimeEntry } from '../types';
 import { DEFAULT_SETTINGS } from '../utils/defaults';
 import { getToday, calcDuration } from '../utils/time';
 import * as storage from '../storage';
+import { flushPendingWrites } from '../storage';
 import * as local from '../storage/localStorage';
 import { useAuth } from './AuthContext';
+
+// ---- Helper to create a new entry with all v2 defaults ----
+
+function createEntry(fields: {
+  taskId: string;
+  taskName: string;
+  date: string;
+  note?: string;
+}): TimeEntry {
+  return {
+    id: uuid(),
+    taskId: fields.taskId,
+    taskName: fields.taskName,
+    date: fields.date,
+    startTime: new Date().toISOString(),
+    endTime: null,
+    duration: null,
+    note: fields.note ?? '',
+    projectId: null,
+    valueCategory: null,
+    workStyle: null,
+    outputType: null,
+    sessionStatus: 'In Progress',
+    isCompleted: false,
+    completionNote: '',
+    nextSteps: '',
+    blockedBy: '',
+    carryForward: false,
+  };
+}
 
 // ---- Default state (shown while loading) ----
 
@@ -18,6 +49,7 @@ function getDefaultState(): AppState {
   return {
     tasks: [],
     entries: [],
+    tagOptions: [],
     activeEntryId: null,
     lastTaskId: null,
     currentDate: getToday(),
@@ -28,22 +60,23 @@ function getDefaultState(): AppState {
   };
 }
 
-// ---- Reducer (unchanged logic, just added loading) ----
+// ---- Reducer ----
 
 function appReducer(state: AppState, action: AppAction): AppState {
   switch (action.type) {
     case 'START_TASK': {
-      const now = new Date().toISOString();
       const task = state.tasks.find(t => t.id === action.taskId);
       if (!task) return state;
 
       let entries = [...state.entries];
       let lastTaskId = state.lastTaskId;
+      const now = new Date().toISOString();
 
       if (state.activeEntryId) {
         const activeIdx = entries.findIndex(e => e.id === state.activeEntryId);
         if (activeIdx >= 0) {
           if (entries[activeIdx].taskId === action.taskId) {
+            // Clicking same task = toggle off
             entries[activeIdx] = {
               ...entries[activeIdx],
               endTime: now,
@@ -52,6 +85,7 @@ function appReducer(state: AppState, action: AppAction): AppState {
             lastTaskId = entries[activeIdx].taskId;
             return { ...state, entries, activeEntryId: null, lastTaskId };
           }
+          // Stop current task
           entries[activeIdx] = {
             ...entries[activeIdx],
             endTime: now,
@@ -61,16 +95,14 @@ function appReducer(state: AppState, action: AppAction): AppState {
         }
       }
 
-      const newEntry: TimeEntry = {
-        id: uuid(),
+      const newEntry = createEntry({
         taskId: action.taskId,
         taskName: task.name,
         date: state.currentDate,
-        startTime: now,
-        endTime: null,
-        duration: null,
-        note: action.note ?? '',
-      };
+        note: action.note,
+      });
+      // Override startTime to use the `now` we already computed
+      newEntry.startTime = now;
       entries.push(newEntry);
 
       return { ...state, entries, activeEntryId: newEntry.id, lastTaskId };
@@ -148,6 +180,13 @@ function appReducer(state: AppState, action: AppAction): AppState {
       return { ...state, entries };
     }
 
+    case 'SET_ENTRY_TAGS': {
+      const entries = state.entries.map(e =>
+        e.id === action.entryId ? { ...e, ...action.tags } : e
+      );
+      return { ...state, entries };
+    }
+
     case 'UPDATE_SETTINGS': {
       return { ...state, settings: { ...state.settings, ...action.settings } };
     }
@@ -163,7 +202,6 @@ function appReducer(state: AppState, action: AppAction): AppState {
       if (state.activeEntryId) {
         newState = appReducer(state, { type: 'STOP_TASK' });
       }
-      // Entries for new day will be loaded async in the effect
       return {
         ...newState,
         currentDate: today,
@@ -178,8 +216,38 @@ function appReducer(state: AppState, action: AppAction): AppState {
       return { ...state, ...action.state };
     }
 
+    case 'REORDER_TASKS': {
+      const tasks = action.taskIds.map((id, idx) => {
+        const task = state.tasks.find(t => t.id === id)!;
+        return { ...task, order: idx };
+      });
+      return { ...state, tasks };
+    }
+
     case 'DUPLICATE_YESTERDAY': {
       return state;
+    }
+
+    // ---- Tag Options ----
+
+    case 'LOAD_TAG_OPTIONS': {
+      return { ...state, tagOptions: action.options };
+    }
+
+    case 'ADD_TAG_OPTION': {
+      return { ...state, tagOptions: [...state.tagOptions, action.option] };
+    }
+
+    case 'UPDATE_TAG_OPTION': {
+      const tagOptions = state.tagOptions.map(o =>
+        o.id === action.option.id ? action.option : o
+      );
+      return { ...state, tagOptions };
+    }
+
+    case 'DELETE_TAG_OPTION': {
+      const tagOptions = state.tagOptions.filter(o => o.id !== action.optionId);
+      return { ...state, tagOptions };
     }
 
     default:
@@ -212,12 +280,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const init = async () => {
       const today = getToday();
 
-      const [tasks, entries, settings, dailyNote, activeEntryId] = await Promise.all([
+      const [tasks, entries, settings, dailyNote, activeEntryId, tagOptions] = await Promise.all([
         storage.loadTasks(userId),
         storage.loadEntries(userId, today),
         storage.loadSettings(userId),
         storage.loadDailyNote(userId, today),
         storage.loadActiveEntryId(userId, today),
+        storage.loadTagOptions(userId),
       ]);
 
       const lastTaskId = local.loadLastTaskId();
@@ -227,6 +296,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         state: {
           tasks,
           entries,
+          tagOptions,
           settings: settings ?? DEFAULT_SETTINGS,
           dailyNote,
           activeEntryId,
@@ -240,20 +310,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     init();
   }, [userId]);
 
-  // ---- Persist changes to hybrid storage (debounced Supabase + instant localStorage) ----
+  // ---- Persist changes to hybrid storage ----
   useEffect(() => {
     if (!userId || state.loading) return;
 
     const prev = prevStateRef.current;
     prevStateRef.current = state;
 
-    // Skip the first render after init (data just loaded from Supabase)
     if (!prev || prev.loading) return;
 
-    // Only persist what changed
     if (prev.tasks !== state.tasks) {
       storage.saveTasks(userId, state.tasks);
-      // Handle deletes: find tasks removed from the list
       const removedIds = prev.tasks
         .filter(t => !state.tasks.find(s => s.id === t.id))
         .map(t => t.id);
@@ -262,7 +329,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     if (prev.entries !== state.entries) {
       storage.saveEntries(userId, state.currentDate, state.entries);
-      // Handle deletes
       const removedIds = prev.entries
         .filter(e => !state.entries.find(s => s.id === e.id))
         .map(e => e.id);
@@ -285,13 +351,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       storage.saveLastTaskId(state.lastTaskId);
     }
 
+    // Tag option persistence is handled individually via dispatch side-effects
+    // (ADD/UPDATE/DELETE actions call storage directly in components)
+
     storage.addTrackedDate(state.currentDate);
   }, [state, userId]);
 
   // ---- Load new day's data when day changes ----
   useEffect(() => {
     if (!userId || !state.loading) return;
-    // state.loading is true after NEW_DAY action — fetch new day's data
     const loadNewDay = async () => {
       const [entries, dailyNote, activeEntryId] = await Promise.all([
         storage.loadEntries(userId, state.currentDate),
@@ -317,13 +385,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return () => clearInterval(interval);
   }, [state.currentDate]);
 
-  // ---- Warn before closing with active task ----
+  // ---- Flush writes on page hide / app background (critical on mobile) ----
   useEffect(() => {
-    const handler = (e: BeforeUnloadEvent) => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      flushPendingWrites();
       if (state.activeEntryId) e.preventDefault();
     };
-    window.addEventListener('beforeunload', handler);
-    return () => window.removeEventListener('beforeunload', handler);
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        // App went to background (mobile tab switch, home screen, etc.)
+        flushPendingWrites();
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, [state.activeEntryId]);
 
   const getActiveEntry = useCallback(() => {

@@ -23,6 +23,16 @@ function mapRow(row: Record<string, unknown>): RealtimeEntry {
     duration: (row.duration_ms as number) ?? null,
     note: (row.note as string) ?? '',
     userId: row.user_id as string,
+    projectId: (row.project_id as string) ?? null,
+    valueCategory: (row.value_category as string) ?? null,
+    workStyle: (row.work_style as string) ?? null,
+    outputType: (row.output_type as string) ?? null,
+    sessionStatus: (row.session_status as string) ?? 'In Progress',
+    isCompleted: (row.is_completed as boolean) ?? false,
+    completionNote: (row.completion_note as string) ?? '',
+    nextSteps: (row.next_steps as string) ?? '',
+    blockedBy: (row.blocked_by as string) ?? '',
+    carryForward: (row.carry_forward as boolean) ?? false,
   };
 }
 

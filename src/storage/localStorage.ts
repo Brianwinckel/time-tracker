@@ -3,7 +3,7 @@
 // Swap this file to migrate to IndexedDB, SQLite, or a REST API
 // ============================================================
 
-import type { Task, TimeEntry, Settings } from '../types';
+import type { Task, TimeEntry, Settings, TagOption } from '../types';
 
 const KEYS = {
   tasks: 'tt_tasks',
@@ -13,6 +13,7 @@ const KEYS = {
   lastTaskId: 'tt_last_task_id',
   currentDate: 'tt_current_date',
   dailyNote: 'tt_daily_note',
+  tagOptions: 'tt_tag_options',
 } as const;
 
 // Generic helpers
@@ -104,4 +105,14 @@ export function loadDailyNote(date: string): string {
 
 export function saveDailyNote(date: string, note: string): void {
   set(`tt_daily_note_${date}`, note);
+}
+
+// ---- Tag Options ----
+
+export function loadTagOptions(): TagOption[] {
+  return get<TagOption[]>(KEYS.tagOptions, []);
+}
+
+export function saveTagOptions(options: TagOption[]): void {
+  set(KEYS.tagOptions, options);
 }

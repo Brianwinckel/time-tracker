@@ -44,6 +44,16 @@ export const ManualEntryForm: React.FC = () => {
         endTime,
         duration: calcDuration(startTime, endTime),
         note,
+        projectId: null,
+        valueCategory: null,
+        workStyle: null,
+        outputType: null,
+        sessionStatus: 'In Progress',
+        isCompleted: false,
+        completionNote: '',
+        nextSteps: '',
+        blockedBy: '',
+        carryForward: false,
       },
     });
 

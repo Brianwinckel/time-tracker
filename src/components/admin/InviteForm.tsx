@@ -60,7 +60,7 @@ export const InviteForm: React.FC = () => {
     <div className="invite-form">
       <h3>Invite New User</h3>
       <p className="invite-form__desc">
-        Send a magic link to invite someone to TimeTracker. They'll create their account
+        Send a magic link to invite someone to TaskPanels. They'll create their account
         when they click the link and can pick their team on first login.
       </p>
 

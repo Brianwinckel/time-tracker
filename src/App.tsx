@@ -2,6 +2,8 @@ import React, { useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { AppProvider, useApp } from './context/AppContext';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
+import { useIdleWarning } from './hooks/useIdleWarning';
+import { useTimedTaskReminder } from './hooks/useTimedTaskReminder';
 import { Header } from './components/Header';
 import { Dashboard } from './components/Dashboard';
 import { DailySummary } from './components/DailySummary';
@@ -11,11 +13,14 @@ import { AuthScreen } from './components/AuthScreen';
 import { TeamSelector } from './components/TeamSelector';
 import { ManagerDashboard } from './components/ManagerDashboard';
 import { AdminPanel } from './components/admin/AdminPanel';
+import { BugReport } from './components/BugReport';
 
 // Inner content — only rendered when authenticated + has team
 const AppContent: React.FC = () => {
   const { state } = useApp();
   useKeyboardShortcuts();
+  useIdleWarning();
+  useTimedTaskReminder();
 
   useEffect(() => {
     document.documentElement.setAttribute(
@@ -35,6 +40,7 @@ const AppContent: React.FC = () => {
         {state.view === 'history' && <BackdateBuilder />}
         {state.view === 'settings' && <Settings />}
       </main>
+      <BugReport />
     </div>
   );
 };

@@ -10,7 +10,26 @@ export interface Task {
   isPinned: boolean;     // pinned tasks persist permanently
   createdAt: string;     // ISO timestamp
   order: number;         // display order
+  timerMinutes: number;  // 0 = no timer, >0 = auto-remind after N minutes
 }
+
+// ---- Tagging / Value Tracking ----
+
+export type TagCategory = 'project' | 'value_category' | 'work_style' | 'output_type' | 'session_status';
+
+export interface TagOption {
+  id: string;
+  userId: string;
+  category: TagCategory;
+  value: string;
+  color: string;
+  sortOrder: number;
+  isDefault: boolean;
+  isArchived: boolean;
+  createdAt: string;
+}
+
+// ---- Time Entries (extended with tagging) ----
 
 export interface TimeEntry {
   id: string;
@@ -21,6 +40,29 @@ export interface TimeEntry {
   endTime: string | null; // null = still running
   duration: number | null; // ms, null if still running
   note: string;
+
+  // v2 tagging fields (all optional for backwards compat)
+  projectId: string | null;
+  valueCategory: string | null;
+  workStyle: string | null;
+  outputType: string | null;
+  sessionStatus: string;       // default: 'In Progress'
+  isCompleted: boolean;
+  completionNote: string;
+  nextSteps: string;
+  blockedBy: string;
+  carryForward: boolean;
+}
+
+/** Data collected from the SessionOutcomeModal */
+export interface SessionOutcome {
+  isCompleted: boolean;
+  sessionStatus: string;
+  outputType: string | null;
+  completionNote: string;
+  nextSteps: string;
+  blockedBy: string;
+  carryForward: boolean;
 }
 
 export interface DailySummary {
@@ -42,11 +84,15 @@ export interface Settings {
   idleWarningMinutes: number;
   autoEmailEnabled: boolean;
   autoEmailRecipient: string;
+  autoEmailTime: string;         // HH:MM in 24h format, e.g. "17:00"
+  autoEmailMinHours: number;     // minimum tracked hours to allow auto-send (e.g. 8)
+  autoEmailMaxGapMin: number;    // max untracked gap in minutes before blocking (e.g. 120)
 }
 
 export interface AppState {
   tasks: Task[];
   entries: TimeEntry[];     // all entries for current date
+  tagOptions: TagOption[];  // user's customizable tag options
   activeEntryId: string | null;
   lastTaskId: string | null; // for "resume last task"
   currentDate: string;       // YYYY-MM-DD
@@ -69,8 +115,14 @@ export type AppAction =
   | { type: 'ADD_MANUAL_ENTRY'; entry: TimeEntry }
   | { type: 'SET_DAILY_NOTE'; note: string }
   | { type: 'SET_ENTRY_NOTE'; entryId: string; note: string }
+  | { type: 'SET_ENTRY_TAGS'; entryId: string; tags: Partial<TimeEntry> }
   | { type: 'UPDATE_SETTINGS'; settings: Partial<Settings> }
   | { type: 'SET_VIEW'; view: AppState['view'] }
   | { type: 'NEW_DAY' }
   | { type: 'LOAD_STATE'; state: Partial<AppState> }
-  | { type: 'DUPLICATE_YESTERDAY' };
+  | { type: 'DUPLICATE_YESTERDAY' }
+  | { type: 'REORDER_TASKS'; taskIds: string[] }
+  | { type: 'LOAD_TAG_OPTIONS'; options: TagOption[] }
+  | { type: 'ADD_TAG_OPTION'; option: TagOption }
+  | { type: 'UPDATE_TAG_OPTION'; option: TagOption }
+  | { type: 'DELETE_TAG_OPTION'; optionId: string };

@@ -4,6 +4,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
+import { flushPendingWrites } from '../storage';
 import type { User, Session } from '@supabase/supabase-js';
 
 export interface Profile {
@@ -20,6 +21,12 @@ interface AuthContextType {
   profile: Profile | null;
   loading: boolean;
   signIn: (email: string) => Promise<{ error: string | null }>;
+  verifyOtp: (email: string, token: string) => Promise<{ error: string | null }>;
+  signInWithPassword: (email: string, password: string) => Promise<{ error: string | null }>;
+  signInWithGoogle: () => Promise<{ error: string | null }>;
+  signUp: (email: string, password: string, name: string) => Promise<{ error: string | null }>;
+  resetPassword: (email: string) => Promise<{ error: string | null }>;
+  updatePassword: (newPassword: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   updateProfile: (updates: Partial<Profile>) => Promise<void>;
@@ -110,15 +117,70 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { error: error?.message ?? null };
   }, []);
 
-  // Sign out
+  // Verify OTP code (email 2FA)
+  const verifyOtp = useCallback(async (email: string, token: string) => {
+    const { error } = await supabase.auth.verifyOtp({
+      email,
+      token,
+      type: 'email',
+    });
+    return { error: error?.message ?? null };
+  }, []);
+
+  // Sign in with email + password
+  const signInWithPassword = useCallback(async (email: string, password: string) => {
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    return { error: error?.message ?? null };
+  }, []);
+
+  // Sign in with Google OAuth
+  const signInWithGoogle = useCallback(async () => {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: window.location.origin,
+      },
+    });
+    return { error: error?.message ?? null };
+  }, []);
+
+  // Sign up with email + password
+  const signUp = useCallback(async (email: string, password: string, name: string) => {
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: { name },
+        emailRedirectTo: window.location.origin,
+      },
+    });
+    return { error: error?.message ?? null };
+  }, []);
+
+  // Send password reset email
+  const resetPassword = useCallback(async (email: string) => {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}?reset=true`,
+    });
+    return { error: error?.message ?? null };
+  }, []);
+
+  // Update password (after reset link click)
+  const updatePassword = useCallback(async (newPassword: string) => {
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    return { error: error?.message ?? null };
+  }, []);
+
+  // Sign out — flush pending data first
   const signOut = useCallback(async () => {
+    flushPendingWrites();
     await supabase.auth.signOut();
     setUser(null);
     setProfile(null);
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading, signIn, signOut, refreshProfile, updateProfile }}>
+    <AuthContext.Provider value={{ user, profile, loading, signIn, verifyOtp, signInWithPassword, signInWithGoogle, signUp, resetPassword, updatePassword, signOut, refreshProfile, updateProfile }}>
       {children}
     </AuthContext.Provider>
   );
