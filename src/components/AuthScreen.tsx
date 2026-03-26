@@ -321,54 +321,46 @@ export const AuthScreen: React.FC = () => {
             <p className="auth-description">Get started with TaskPanels</p>
 
             <form onSubmit={handleSignup} className="auth-form">
-              <label className="field">
-                <span>Full name</span>
-                <input
-                  type="text"
-                  value={name}
-                  onChange={e => setName(e.target.value)}
-                  placeholder="Jane Smith"
-                  autoFocus
-                  required
-                />
-              </label>
-              <label className="field">
-                <span>Email address</span>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  placeholder="you@company.com"
-                  required
-                />
-              </label>
-              <label className="field">
-                <span>Password</span>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  placeholder="At least 6 characters"
-                  required
-                />
-              </label>
-              <label className="field">
-                <span>Confirm password</span>
-                <input
-                  type="password"
-                  value={confirmPassword}
-                  onChange={e => setConfirmPassword(e.target.value)}
-                  placeholder="Re-enter your password"
-                  required
-                />
-              </label>
+              <input
+                type="text"
+                value={name}
+                onChange={e => setName(e.target.value)}
+                placeholder="Full Name"
+                autoFocus
+                required
+                className="auth-email-input"
+              />
+              <input
+                type="email"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                placeholder="Email Address"
+                required
+                className="auth-email-input"
+              />
+              <input
+                type="password"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                placeholder="Password (at least 6 characters)"
+                required
+                className="auth-email-input"
+              />
+              <input
+                type="password"
+                value={confirmPassword}
+                onChange={e => setConfirmPassword(e.target.value)}
+                placeholder="Confirm Password"
+                required
+                className="auth-email-input"
+              />
 
               {error && <p className="auth-error">{error}</p>}
               {success && <p className="auth-success-msg">{success}</p>}
 
               <button
                 type="submit"
-                className="btn btn--primary btn--full"
+                className="btn btn--primary btn--full btn--lg"
                 disabled={submitting}
               >
                 {submitting ? 'Creating account...' : 'Create Account'}
@@ -402,24 +394,22 @@ export const AuthScreen: React.FC = () => {
             <p className="auth-description">Enter your email and we'll send you a reset link.</p>
 
             <form onSubmit={handleForgot} className="auth-form">
-              <label className="field">
-                <span>Email address</span>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  placeholder="you@company.com"
-                  autoFocus
-                  required
-                />
-              </label>
+              <input
+                type="email"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                placeholder="Email Address"
+                autoFocus
+                required
+                className="auth-email-input"
+              />
 
               {error && <p className="auth-error">{error}</p>}
               {success && <p className="auth-success-msg">{success}</p>}
 
               <button
                 type="submit"
-                className="btn btn--primary btn--full"
+                className="btn btn--primary btn--full btn--lg"
                 disabled={submitting}
               >
                 {submitting ? 'Sending...' : 'Send Reset Link'}
@@ -441,34 +431,30 @@ export const AuthScreen: React.FC = () => {
             <p className="auth-description">Enter your new password below.</p>
 
             <form onSubmit={handleReset} className="auth-form">
-              <label className="field">
-                <span>New password</span>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  placeholder="At least 6 characters"
-                  autoFocus
-                  required
-                />
-              </label>
-              <label className="field">
-                <span>Confirm new password</span>
-                <input
-                  type="password"
-                  value={confirmPassword}
-                  onChange={e => setConfirmPassword(e.target.value)}
-                  placeholder="Re-enter your password"
-                  required
-                />
-              </label>
+              <input
+                type="password"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                placeholder="New Password (at least 6 characters)"
+                autoFocus
+                required
+                className="auth-email-input"
+              />
+              <input
+                type="password"
+                value={confirmPassword}
+                onChange={e => setConfirmPassword(e.target.value)}
+                placeholder="Confirm New Password"
+                required
+                className="auth-email-input"
+              />
 
               {error && <p className="auth-error">{error}</p>}
               {success && <p className="auth-success-msg">{success}</p>}
 
               <button
                 type="submit"
-                className="btn btn--primary btn--full"
+                className="btn btn--primary btn--full btn--lg"
                 disabled={submitting}
               >
                 {submitting ? 'Updating...' : 'Set New Password'}
