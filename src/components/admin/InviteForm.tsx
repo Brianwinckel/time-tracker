@@ -4,7 +4,7 @@
 // ============================================================
 
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../../lib/supabase';
+import { supabase, getAppUrl } from '../../lib/supabase';
 
 interface Team {
   id: string;
@@ -40,7 +40,7 @@ export const InviteForm: React.FC = () => {
       options: {
         // Don't actually sign in the admin — just send the invite link
         shouldCreateUser: true,
-        emailRedirectTo: window.location.origin,
+        emailRedirectTo: getAppUrl(),
       },
     });
 

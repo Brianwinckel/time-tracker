@@ -3,7 +3,7 @@
 // ============================================================
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase, getAppUrl } from '../lib/supabase';
 import { flushPendingWrites } from '../storage';
 import type { User, Session } from '@supabase/supabase-js';
 
@@ -109,10 +109,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Sign in with magic link
   const signIn = useCallback(async (email: string) => {
-    const redirectTo = window.location.origin;
     const { error } = await supabase.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: redirectTo },
+      options: { emailRedirectTo: getAppUrl() },
     });
     return { error: error?.message ?? null };
   }, []);
@@ -138,7 +137,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: window.location.origin,
+        redirectTo: getAppUrl(),
       },
     });
     return { error: error?.message ?? null };
@@ -151,7 +150,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       password,
       options: {
         data: { name },
-        emailRedirectTo: window.location.origin,
+        emailRedirectTo: getAppUrl(),
       },
     });
     return { error: error?.message ?? null };
@@ -160,7 +159,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Send password reset email
   const resetPassword = useCallback(async (email: string) => {
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}?reset=true`,
+      redirectTo: `${getAppUrl()}?reset=true`,
     });
     return { error: error?.message ?? null };
   }, []);
