@@ -1,5 +1,20 @@
+@import "tailwindcss";
+
+/* ---- Tailwind Theme Overrides ---- */
+@theme {
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --color-panel-blue: #3b82f6;
+  --color-panel-orange: #f97316;
+  --color-panel-purple: #8b5cf6;
+  --color-panel-emerald: #10b981;
+  --color-panel-rose: #f43f5e;
+  --color-panel-teal: #14b8a6;
+  --color-panel-amber: #f59e0b;
+  --color-panel-indigo: #6366f1;
+}
+
 /* ============================================================
-   TimeTracker — Global Styles
+   TimeTracker — Global Styles (Legacy)
    ============================================================ */
 
 /* ---- CSS Variables / Theming ---- */

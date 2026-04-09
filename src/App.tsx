@@ -5,7 +5,7 @@ import { EntitlementsProvider } from './billing/entitlements';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { useIdleWarning } from './hooks/useIdleWarning';
 import { useTimedTaskReminder } from './hooks/useTimedTaskReminder';
-import { Header } from './components/Header';
+import { AppShell } from './components/layout/AppShell';
 import { Dashboard } from './components/Dashboard';
 import { DailySummary } from './components/DailySummary';
 import { Settings } from './components/Settings';
@@ -31,18 +31,15 @@ const AppContent: React.FC = () => {
   }, [state.settings.darkMode]);
 
   return (
-    <div className="app">
-      <Header />
-      <main className="main">
-        {state.view === 'dashboard' && <Dashboard />}
-        {state.view === 'summary' && <DailySummary />}
-        {state.view === 'manager' && <ManagerDashboard />}
-        {state.view === 'admin' && <AdminPanel />}
-        {state.view === 'history' && <BackdateBuilder />}
-        {state.view === 'settings' && <Settings />}
-      </main>
+    <AppShell>
+      {state.view === 'dashboard' && <Dashboard />}
+      {state.view === 'summary' && <DailySummary />}
+      {state.view === 'manager' && <ManagerDashboard />}
+      {state.view === 'admin' && <AdminPanel />}
+      {state.view === 'history' && <BackdateBuilder />}
+      {state.view === 'settings' && <Settings />}
       <FeedbackFab />
-    </div>
+    </AppShell>
   );
 };
 
