@@ -34,7 +34,7 @@ export const Dashboard: React.FC = () => {
   }, [state.activeEntryId, state.entries]);
 
   if (state.loading) {
-    return <div className="loading-screen">Loading your tasks...</div>;
+    return <div className="loading-screen" role="status" aria-busy="true">Loading your tasks...</div>;
   }
 
   const hasEntries = state.entries.filter(e => e.endTime).length > 0;

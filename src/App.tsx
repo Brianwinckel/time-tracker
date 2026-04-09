@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { AppProvider, useApp } from './context/AppContext';
+import { EntitlementsProvider } from './billing/entitlements';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { useIdleWarning } from './hooks/useIdleWarning';
 import { useTimedTaskReminder } from './hooks/useTimedTaskReminder';
@@ -13,7 +14,7 @@ import { AuthScreen } from './components/AuthScreen';
 import { TeamSelector } from './components/TeamSelector';
 import { ManagerDashboard } from './components/ManagerDashboard';
 import { AdminPanel } from './components/admin/AdminPanel';
-import { BugReport } from './components/BugReport';
+import { FeedbackFab } from './components/FeedbackFab';
 
 // Inner content — only rendered when authenticated + has team
 const AppContent: React.FC = () => {
@@ -40,7 +41,7 @@ const AppContent: React.FC = () => {
         {state.view === 'history' && <BackdateBuilder />}
         {state.view === 'settings' && <Settings />}
       </main>
-      <BugReport />
+      <FeedbackFab />
     </div>
   );
 };
@@ -66,9 +67,11 @@ const AuthGate: React.FC = () => {
 
   // Fully authenticated + has team — show the app
   return (
-    <AppProvider>
-      <AppContent />
-    </AppProvider>
+    <EntitlementsProvider>
+      <AppProvider>
+        <AppContent />
+      </AppProvider>
+    </EntitlementsProvider>
   );
 };
 

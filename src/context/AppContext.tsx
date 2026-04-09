@@ -5,7 +5,7 @@
 
 import React, { createContext, useContext, useReducer, useEffect, useCallback, useRef } from 'react';
 import { v4 as uuid } from 'uuid';
-import type { AppState, AppAction, TimeEntry } from '../types';
+import type { AppState, AppAction, Task, TimeEntry } from '../types';
 import { DEFAULT_SETTINGS } from '../utils/defaults';
 import { getToday, calcDuration } from '../utils/time';
 import * as storage from '../storage';
@@ -217,10 +217,12 @@ function appReducer(state: AppState, action: AppAction): AppState {
     }
 
     case 'REORDER_TASKS': {
-      const tasks = action.taskIds.map((id, idx) => {
-        const task = state.tasks.find(t => t.id === id)!;
-        return { ...task, order: idx };
-      });
+      const tasks = action.taskIds
+        .map((id, idx) => {
+          const task = state.tasks.find(t => t.id === id);
+          return task ? { ...task, order: idx } : null;
+        })
+        .filter((t): t is Task => t !== null);
       return { ...state, tasks };
     }
 
@@ -278,33 +280,52 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     initializedRef.current = true;
 
     const init = async () => {
-      const today = getToday();
+      try {
+        const today = getToday();
 
-      const [tasks, entries, settings, dailyNote, activeEntryId, tagOptions] = await Promise.all([
-        storage.loadTasks(userId),
-        storage.loadEntries(userId, today),
-        storage.loadSettings(userId),
-        storage.loadDailyNote(userId, today),
-        storage.loadActiveEntryId(userId, today),
-        storage.loadTagOptions(userId),
-      ]);
+        const [tasks, entries, settings, dailyNote, activeEntryId, tagOptions] = await Promise.all([
+          storage.loadTasks(userId),
+          storage.loadEntries(userId, today),
+          storage.loadSettings(userId),
+          storage.loadDailyNote(userId, today),
+          storage.loadActiveEntryId(userId, today),
+          storage.loadTagOptions(userId),
+        ]);
 
-      const lastTaskId = local.loadLastTaskId();
+        const lastTaskId = local.loadLastTaskId();
 
-      dispatch({
-        type: 'LOAD_STATE',
-        state: {
-          tasks,
-          entries,
-          tagOptions,
-          settings: settings ?? DEFAULT_SETTINGS,
-          dailyNote,
-          activeEntryId,
-          lastTaskId,
-          currentDate: today,
-          loading: false,
-        },
-      });
+        dispatch({
+          type: 'LOAD_STATE',
+          state: {
+            tasks,
+            entries,
+            tagOptions,
+            settings: settings ?? DEFAULT_SETTINGS,
+            dailyNote,
+            activeEntryId,
+            lastTaskId,
+            currentDate: today,
+            loading: false,
+          },
+        });
+      } catch (err) {
+        console.error('Failed to initialize app state:', err);
+        // Fall back to localStorage data so the app is still usable
+        dispatch({
+          type: 'LOAD_STATE',
+          state: {
+            tasks: local.loadTasks(),
+            entries: local.loadEntries(getToday()),
+            tagOptions: local.loadTagOptions(),
+            settings: local.loadSettings() ?? DEFAULT_SETTINGS,
+            dailyNote: local.loadDailyNote(getToday()),
+            activeEntryId: local.loadActiveEntryId(),
+            lastTaskId: local.loadLastTaskId(),
+            currentDate: getToday(),
+            loading: false,
+          },
+        });
+      }
     };
 
     init();
@@ -361,15 +382,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!userId || !state.loading) return;
     const loadNewDay = async () => {
-      const [entries, dailyNote, activeEntryId] = await Promise.all([
-        storage.loadEntries(userId, state.currentDate),
-        storage.loadDailyNote(userId, state.currentDate),
-        storage.loadActiveEntryId(userId, state.currentDate),
-      ]);
-      dispatch({
-        type: 'LOAD_STATE',
-        state: { entries, dailyNote, activeEntryId, loading: false },
-      });
+      try {
+        const [entries, dailyNote, activeEntryId] = await Promise.all([
+          storage.loadEntries(userId, state.currentDate),
+          storage.loadDailyNote(userId, state.currentDate),
+          storage.loadActiveEntryId(userId, state.currentDate),
+        ]);
+        dispatch({
+          type: 'LOAD_STATE',
+          state: { entries, dailyNote, activeEntryId, loading: false },
+        });
+      } catch (err) {
+        console.error('Failed to load new day data:', err);
+        dispatch({
+          type: 'LOAD_STATE',
+          state: { entries: [], dailyNote: '', activeEntryId: null, loading: false },
+        });
+      }
     };
     loadNewDay();
   }, [state.currentDate, state.loading, userId]);
@@ -411,8 +440,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return state.entries.find(e => e.id === state.activeEntryId);
   }, [state.entries, state.activeEntryId]);
 
+  const contextValue = React.useMemo(
+    () => ({ state, dispatch, getActiveEntry }),
+    [state, getActiveEntry]
+  );
+
   return (
-    <AppContext.Provider value={{ state, dispatch, getActiveEntry }}>
+    <AppContext.Provider value={contextValue}>
       {children}
     </AppContext.Provider>
   );

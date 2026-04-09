@@ -3,13 +3,15 @@
 // Long-press on mobile, click-drag on desktop
 // ============================================================
 
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { useTimer } from '../hooks/useTimer';
 import { TaskPanel } from './TaskPanel';
 import { AddTaskModal } from './AddTaskModal';
 import { EditTaskModal } from './EditTaskModal';
 import { TaskNotePrompt } from './TaskNotePrompt';
+import { UpgradePrompt } from './billing/UpgradePrompt';
+import { useEntitlements, canUseFeature, getFeatureLimit } from '../billing/entitlements';
 import { formatDuration } from '../utils/time';
 import type { Task } from '../types';
 
@@ -21,8 +23,10 @@ const LONG_PRESS_MS = 400;
 export const TaskGrid: React.FC = () => {
   const { state, dispatch } = useApp();
   const [showAdd, setShowAdd] = useState(false);
+  const [showUpgrade, setShowUpgrade] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [promptTask, setPromptTask] = useState<Task | null>(null);
+  const { entitlements } = useEntitlements();
 
   // Drag state
   const [dragId, setDragId] = useState<string | null>(null);
@@ -41,7 +45,7 @@ export const TaskGrid: React.FC = () => {
   const breakTasks = sortedTasks.filter(t => BREAK_TASK_NAMES.includes(t.name.toLowerCase()));
 
   // Build display order: if dragging, reorder preview (work tasks only)
-  const displayTasks = (() => {
+  const displayTasks = useMemo(() => {
     if (!dragId || !overId || dragId === overId) return workTasks;
     const items = workTasks.filter(t => t.id !== dragId);
     const draggedTask = workTasks.find(t => t.id === dragId);
@@ -50,7 +54,7 @@ export const TaskGrid: React.FC = () => {
     if (overIdx < 0) return workTasks;
     items.splice(overIdx, 0, draggedTask);
     return items;
-  })();
+  }, [workTasks, dragId, overId]);
 
   const cancelLongPress = useCallback(() => {
     if (longPressTimer.current) {
@@ -261,7 +265,16 @@ export const TaskGrid: React.FC = () => {
         {!isReorderMode && (
           <button
             className="task-panel task-panel--add"
-            onClick={() => setShowAdd(true)}
+            onClick={() => {
+              const customCount = state.tasks.filter(t => !t.isDefault).length;
+              const unlimited = canUseFeature(entitlements.features, 'unlimited_panels');
+              const maxPanels = getFeatureLimit(entitlements.features, 'max_custom_panels');
+              if (!unlimited && customCount >= maxPanels) {
+                setShowUpgrade(true);
+              } else {
+                setShowAdd(true);
+              }
+            }}
           >
             <span className="task-panel__add-icon">+</span>
             <span className="task-panel__name">Add Task</span>
@@ -304,6 +317,14 @@ export const TaskGrid: React.FC = () => {
       {showAdd && <AddTaskModal onClose={() => setShowAdd(false)} />}
       {editingTask && (
         <EditTaskModal task={editingTask} onClose={() => setEditingTask(null)} />
+      )}
+      {showUpgrade && (
+        <UpgradePrompt
+          feature="unlimited_panels"
+          currentPlan={entitlements.plan}
+          onClose={() => setShowUpgrade(false)}
+          context={`You've reached the ${getFeatureLimit(entitlements.features, 'max_custom_panels')} custom panel limit on the Free plan.`}
+        />
       )}
     </>
   );

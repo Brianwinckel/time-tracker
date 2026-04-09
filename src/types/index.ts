@@ -15,6 +15,8 @@ export interface Task {
 
 // ---- Tagging / Value Tracking ----
 
+export type SessionStatus = 'In Progress' | 'Completed' | 'Needs Follow-up' | 'Needs Pass-off' | 'Blocked' | 'Shelved' | 'Scrapped';
+
 export type TagCategory = 'project' | 'value_category' | 'work_style' | 'output_type' | 'session_status';
 
 export interface TagOption {
@@ -46,7 +48,7 @@ export interface TimeEntry {
   valueCategory: string | null;
   workStyle: string | null;
   outputType: string | null;
-  sessionStatus: string;       // default: 'In Progress'
+  sessionStatus: SessionStatus | string; // default: 'In Progress', string for custom statuses
   isCompleted: boolean;
   completionNote: string;
   nextSteps: string;
@@ -126,3 +128,50 @@ export type AppAction =
   | { type: 'ADD_TAG_OPTION'; option: TagOption }
   | { type: 'UPDATE_TAG_OPTION'; option: TagOption }
   | { type: 'DELETE_TAG_OPTION'; optionId: string };
+
+// ---- Billing Types ----
+
+export type PlanId = 'free' | 'pro' | 'team';
+export type BillingInterval = 'month' | 'year';
+export type SubscriptionStatus = 'trialing' | 'active' | 'past_due' | 'canceled' | 'unpaid' | 'incomplete' | 'incomplete_expired' | 'paused';
+
+export type FeatureKey =
+  | 'unlimited_panels' | 'max_custom_panels' | 'history_days'
+  | 'daily_summary_basic' | 'daily_summary_full'
+  | 'blocker_tracking' | 'passoff_tracking' | 'unrealized_effort'
+  | 'weekly_reports' | 'exports' | 'email_tools'
+  | 'manager_dashboard' | 'team_visibility' | 'shared_rollups' | 'admin_controls';
+
+export interface Subscription {
+  id: string;
+  billing_customer_id: string;
+  stripe_subscription_id: string;
+  stripe_price_id: string;
+  plan: PlanId;
+  status: SubscriptionStatus;
+  billing_interval: BillingInterval;
+  current_period_start: string;
+  current_period_end: string;
+  cancel_at_period_end: boolean;
+  trial_end: string | null;
+  quantity: number;
+}
+
+export interface Entitlement {
+  id: string;
+  user_id: string;
+  plan: PlanId;
+  source: 'default' | 'subscription' | 'team_membership' | 'override';
+  features: Record<string, boolean | number>;
+  subscription_id: string | null;
+  valid_until: string | null;
+}
+
+export interface ResolvedEntitlements {
+  plan: PlanId;
+  features: Record<FeatureKey, boolean | number>;
+  source: string;
+  subscription?: Subscription;
+  trialEndsAt?: string;
+  cancelAtPeriodEnd?: boolean;
+}

@@ -102,7 +102,15 @@ export const TaskPanel: React.FC<Props> = ({ task, isActive, index, onEdit, onSt
                     {formatDuration(remaining)}
                   </div>
                   {/* Progress bar */}
-                  <div className="task-panel__progress" style={{ opacity: 0.3 }}>
+                  <div
+                    className="task-panel__progress"
+                    style={{ opacity: 0.3 }}
+                    role="progressbar"
+                    aria-valuenow={Math.round(progress * 100)}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-label={`${task.name} timer progress`}
+                  >
                     <div
                       className="task-panel__progress-fill"
                       style={{
@@ -135,6 +143,7 @@ export const TaskPanel: React.FC<Props> = ({ task, isActive, index, onEdit, onSt
           onClick={handleEdit}
           style={{ color: textColor }}
           title="Edit task"
+          aria-label={`Edit ${task.name}`}
         >
           &#9998;
         </button>

@@ -8,6 +8,7 @@ import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
 import { isPushSupported, getPushPermission, subscribeToPush, unsubscribeFromPush } from '../utils/push';
 import { TASK_COLORS } from '../utils/colors';
+import { BillingSettings } from './billing/BillingSettings';
 import type { TagCategory, TagOption } from '../types';
 import * as storage from '../storage';
 
@@ -172,6 +173,11 @@ export const Settings: React.FC = () => {
       <h2>Settings</h2>
 
       <section className="settings__section">
+        <h3>Subscription & Billing</h3>
+        <BillingSettings />
+      </section>
+
+      <section className="settings__section">
         <h3>Email Template</h3>
 
         <label className="field">
@@ -322,7 +328,11 @@ export const Settings: React.FC = () => {
         <button
           className="btn btn--danger-outline"
           onClick={async () => {
-            localStorage.clear();
+            if (!confirm('Sign out and clear cached data? Your cloud data is safe.')) return;
+            const appKeys = Object.keys(localStorage).filter(k =>
+              k.startsWith('tp_') || k.startsWith('time-tracker') || k.startsWith('entries_') || k.startsWith('tasks') || k.startsWith('settings') || k.startsWith('daily-note')
+            );
+            appKeys.forEach(k => localStorage.removeItem(k));
             await signOut();
           }}
         >

@@ -9,7 +9,6 @@ export function useTimer(startTime: string | null): number {
   const [elapsed, setElapsed] = useState<number>(
     startTime ? elapsedSince(startTime) : 0
   );
-  const rafRef = useRef<number>(0);
   const startTimeRef = useRef(startTime);
 
   // Keep ref in sync
@@ -25,22 +24,13 @@ export function useTimer(startTime: string | null): number {
   useEffect(() => {
     if (!startTime) return;
 
-    let lastUpdate = Date.now();
-
-    const tick = () => {
-      const now = Date.now();
-      // Update every ~1 second
-      if (now - lastUpdate >= 1000) {
-        lastUpdate = now;
-        if (startTimeRef.current) {
-          setElapsed(elapsedSince(startTimeRef.current));
-        }
+    const interval = setInterval(() => {
+      if (startTimeRef.current) {
+        setElapsed(elapsedSince(startTimeRef.current));
       }
-      rafRef.current = requestAnimationFrame(tick);
-    };
+    }, 1000);
 
-    rafRef.current = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(rafRef.current);
+    return () => clearInterval(interval);
   }, [startTime]);
 
   return elapsed;

@@ -46,6 +46,8 @@ export const ActiveTaskBar: React.FC = () => {
             className="btn btn--tag-toggle"
             onClick={() => setTagsOpen(!tagsOpen)}
             title="Tag this session"
+            aria-label={tagsOpen ? 'Hide tags' : 'Show tags'}
+            aria-expanded={tagsOpen}
           >
             {tagsOpen ? '▾' : '▸'} Tags
           </button>
@@ -53,6 +55,7 @@ export const ActiveTaskBar: React.FC = () => {
             className="btn btn--stop"
             onClick={() => dispatch({ type: 'STOP_TASK' })}
             title="Stop (Esc)"
+            aria-label="Stop current task"
           >
             &#9632; Stop
           </button>

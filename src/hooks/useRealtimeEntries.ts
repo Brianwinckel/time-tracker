@@ -74,13 +74,14 @@ export function useRealtimeEntries(date: string, teamUserIds: string[]) {
     if (teamUserIds.length === 0) return;
 
     const channel = supabase
-      .channel('team-entries')
+      .channel(`team-entries-${teamUserIds.sort().join('-').slice(0, 50)}`)
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
           table: 'time_entries',
+          filter: `user_id=in.(${teamUserIds.join(',')})`,
         },
         (payload) => {
           const { eventType, new: newRow, old: oldRow } = payload;
@@ -106,6 +107,7 @@ export function useRealtimeEntries(date: string, teamUserIds: string[]) {
       .subscribe();
 
     return () => {
+      channel.unsubscribe();
       supabase.removeChannel(channel);
     };
   }, [teamUserIds]);

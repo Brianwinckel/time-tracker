@@ -2,10 +2,13 @@
 // Daily summary screen — date navigation, charts, status breakdown, export
 // ============================================================
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
+import { useEntitlements, canUseFeature } from '../billing/entitlements';
+import { UpgradePrompt } from './billing/UpgradePrompt';
 import { formatDurationShort, formatDateLong, getToday } from '../utils/time';
+import type { FeatureKey } from '../types';
 import {
   getTaskTotals,
   getGrandTotal,
@@ -36,6 +39,19 @@ export const DailySummary: React.FC = () => {
   const { user } = useAuth();
   const [copied, setCopied] = useState<string | null>(null);
   const [showEmail, setShowEmail] = useState(false);
+  const [upgradeFeature, setUpgradeFeature] = useState<FeatureKey | null>(null);
+  const { entitlements } = useEntitlements();
+  const canExport = canUseFeature(entitlements.features, 'exports');
+  const canEmail = canUseFeature(entitlements.features, 'email_tools');
+
+  const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
+    };
+  }, []);
 
   // Date navigation — defaults to current date (today's live data)
   const [viewDate, setViewDate] = useState(state.currentDate);
@@ -53,10 +69,15 @@ export const DailySummary: React.FC = () => {
     if (!user?.id) return;
 
     setLoading(true);
-    storage.loadEntries(user.id, viewDate).then(entries => {
-      setHistoricalEntries(entries);
-      setLoading(false);
-    });
+    storage.loadEntries(user.id, viewDate)
+      .then(entries => {
+        setHistoricalEntries(entries);
+      })
+      .catch(err => {
+        console.error('Failed to load historical entries:', err);
+        setHistoricalEntries([]);
+      })
+      .finally(() => setLoading(false));
   }, [viewDate, isToday, user?.id]);
 
   // Use today's live entries or loaded historical entries
@@ -86,7 +107,8 @@ export const DailySummary: React.FC = () => {
       : generatePlainTextSummary(summaryData);
     await copyToClipboard(text);
     setCopied(type);
-    setTimeout(() => setCopied(null), 2000);
+    if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
+    copiedTimerRef.current = setTimeout(() => setCopied(null), 2000);
   };
 
   const handleCSVExport = () => {
@@ -107,7 +129,7 @@ export const DailySummary: React.FC = () => {
 
   const canGoForward = viewDate < getToday();
 
-  const emailPreview = generateEmailSummary(summaryData);
+  const emailPreview = useMemo(() => generateEmailSummary(summaryData), [summaryData.date, summaryData.entries, summaryData.tasks, summaryData.settings, summaryData.dailyNote]);
 
   // Date navigation bar
   const dateNav = (
@@ -253,17 +275,26 @@ export const DailySummary: React.FC = () => {
       <div className="summary__actions">
         <h3>Export</h3>
         <div className="summary__action-btns">
-          <button className="btn btn--accent" onClick={handleSendEmail}>
-            Send Email
+          <button
+            className={`btn btn--accent ${!canEmail ? 'btn--gated' : ''}`}
+            onClick={() => canEmail ? handleSendEmail() : setUpgradeFeature('email_tools')}
+          >
+            Send Email {!canEmail && <span className="btn__pro-badge">Pro</span>}
           </button>
-          <button className="btn btn--primary" onClick={() => handleCopy('email')}>
-            {copied === 'email' ? 'Copied!' : 'Copy Email'}
+          <button
+            className={`btn btn--primary ${!canEmail ? 'btn--gated' : ''}`}
+            onClick={() => canEmail ? handleCopy('email') : setUpgradeFeature('email_tools')}
+          >
+            {copied === 'email' ? 'Copied!' : 'Copy Email'} {!canEmail && <span className="btn__pro-badge">Pro</span>}
           </button>
           <button className="btn btn--primary" onClick={() => handleCopy('plain')}>
             {copied === 'plain' ? 'Copied!' : 'Copy Summary'}
           </button>
-          <button className="btn btn--secondary" onClick={handleCSVExport}>
-            Export .csv
+          <button
+            className={`btn btn--secondary ${!canExport ? 'btn--gated' : ''}`}
+            onClick={() => canExport ? handleCSVExport() : setUpgradeFeature('exports')}
+          >
+            Export .csv {!canExport && <span className="btn__pro-badge">Pro</span>}
           </button>
           <button
             className="btn btn--secondary"
@@ -293,6 +324,14 @@ export const DailySummary: React.FC = () => {
           <h3>Notes</h3>
           <p>{state.dailyNote}</p>
         </div>
+      )}
+
+      {upgradeFeature && (
+        <UpgradePrompt
+          feature={upgradeFeature}
+          currentPlan={entitlements.plan}
+          onClose={() => setUpgradeFeature(null)}
+        />
       )}
     </div>
   );

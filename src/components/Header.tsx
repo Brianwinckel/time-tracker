@@ -114,6 +114,7 @@ export const Header: React.FC = () => {
           className="header__dark-toggle"
           onClick={() => dispatch({ type: 'UPDATE_SETTINGS', settings: { darkMode: !state.settings.darkMode } })}
           title="Toggle dark mode (D)"
+          aria-label={state.settings.darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
         >
           {state.settings.darkMode ? '\u2600' : '\u263E'}
         </button>
@@ -148,7 +149,11 @@ export const Header: React.FC = () => {
                   className="header__dropdown-item header__dropdown-item--danger"
                   onClick={async () => {
                     setMenuOpen(false);
-                    localStorage.clear();
+                    // Clear only app-specific keys, not all localStorage
+                    const appKeys = Object.keys(localStorage).filter(k =>
+                      k.startsWith('tp_') || k.startsWith('time-tracker') || k.startsWith('entries_') || k.startsWith('tasks') || k.startsWith('settings') || k.startsWith('daily-note')
+                    );
+                    appKeys.forEach(k => localStorage.removeItem(k));
                     await signOut();
                   }}
                 >

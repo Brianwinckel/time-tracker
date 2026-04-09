@@ -22,13 +22,21 @@ function debounce(key: string, fn: () => void, ms = 500): void {
 }
 
 /** Flush all pending debounced writes immediately (call before sign-out / page unload) */
-export function flushPendingWrites(): void {
-  for (const [key, fn] of Object.entries(pendingFns)) {
+export async function flushPendingWrites(): Promise<void> {
+  const fns = Object.entries(pendingFns);
+  for (const [key] of fns) {
     if (debounceTimers[key]) clearTimeout(debounceTimers[key]);
     delete debounceTimers[key];
-    delete pendingFns[key];
-    fn();
   }
+  const promises = fns.map(([key, fn]) => {
+    delete pendingFns[key];
+    try {
+      return Promise.resolve(fn());
+    } catch {
+      return Promise.resolve();
+    }
+  });
+  await Promise.allSettled(promises);
 }
 
 /** Check if there are pending writes that haven't been flushed yet */
@@ -77,9 +85,11 @@ export async function loadEntries(userId: string, date: string): Promise<TimeEnt
     if (debounceTimers[pendingKey]) clearTimeout(debounceTimers[pendingKey]);
     delete debounceTimers[pendingKey];
     delete pendingFns[pendingKey];
-    fn(); // fire immediately so Supabase has the latest
-    // Small delay to let the write propagate
-    await new Promise(r => setTimeout(r, 300));
+    try {
+      await Promise.resolve(fn()); // await the actual write
+    } catch (err) {
+      console.warn('Failed to flush pending entry writes:', err);
+    }
   }
 
   const localEntries = local.loadEntries(date);

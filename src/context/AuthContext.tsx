@@ -2,7 +2,7 @@
 // Auth context — session tracking, profile loading, team join
 // ============================================================
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { flushPendingWrites } from '../storage';
 import type { User, Session } from '@supabase/supabase-js';
@@ -173,14 +173,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Sign out — flush pending data first
   const signOut = useCallback(async () => {
-    flushPendingWrites();
+    await flushPendingWrites();
     await supabase.auth.signOut();
     setUser(null);
     setProfile(null);
   }, []);
 
+  const contextValue = useMemo(() => ({
+    user, profile, loading, signIn, verifyOtp, signInWithPassword,
+    signInWithGoogle, signUp, resetPassword, updatePassword,
+    signOut, refreshProfile, updateProfile,
+  }), [user, profile, loading, signIn, verifyOtp, signInWithPassword,
+    signInWithGoogle, signUp, resetPassword, updatePassword,
+    signOut, refreshProfile, updateProfile]);
+
   return (
-    <AuthContext.Provider value={{ user, profile, loading, signIn, verifyOtp, signInWithPassword, signInWithGoogle, signUp, resetPassword, updatePassword, signOut, refreshProfile, updateProfile }}>
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );
