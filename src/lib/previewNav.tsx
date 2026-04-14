@@ -20,6 +20,7 @@ export type PreviewScreen =
   | 'prepare-summary'
   | 'daily-summary'
   | 'performance-review'
+  | 'summary-archive'
   | 'profile'
   | 'settings'
   | 'settings-projects'
