@@ -24,29 +24,69 @@ import {
 
 const Logo = ({ size = 28 }: { size?: number }) => (
   <svg width={size} height={size} viewBox="0 0 28 28" fill="none">
-    <circle cx="8" cy="8" r="4" fill="#3b82f6" />
-    <circle cx="20" cy="8" r="4" fill="#8b5cf6" />
-    <circle cx="8" cy="20" r="4" fill="#f97316" />
-    <circle cx="20" cy="20" r="4" fill="#10b981" />
+    <circle cx="8" cy="8" r="5" fill="#3b82f6" />
+    <circle cx="20" cy="8" r="5" fill="#10b981" />
+    <circle cx="8" cy="20" r="5" fill="#f97316" />
+    <circle cx="20" cy="20" r="5" fill="#8b5cf6" />
   </svg>
 );
 
 const CopyIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+  <svg className="w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
     <rect x="9" y="9" width="13" height="13" rx="2" />
     <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
   </svg>
 );
 
 const EmailIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-    <path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+  <svg className="w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <rect x="2" y="4" width="20" height="16" rx="2" />
+    <path d="M22 4l-10 8L2 4" />
   </svg>
 );
 
 const DownloadIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-    <path d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+  <svg className="w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+    <polyline points="7 10 12 15 17 10" />
+    <line x1="12" y1="15" x2="12" y2="3" />
+  </svg>
+);
+
+// Note: CheckIconSmall / SpinnerIcon are intentionally omitted until the
+// Copy / Download buttons in this screen get their handlers wired up —
+// declaring unused components would trip noUnusedLocals. Add them back
+// alongside the handlers when we adapt toPlainText / generatePdf for
+// PerformanceReviewData.
+
+// Tab bar icons (matching DailyWorkSummaryScreen)
+const TrackerIcon = () => (
+  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <rect x="3" y="3" width="7" height="7" rx="1" />
+    <rect x="14" y="3" width="7" height="7" rx="1" />
+    <rect x="3" y="14" width="7" height="7" rx="1" />
+    <rect x="14" y="14" width="7" height="7" rx="1" />
+  </svg>
+);
+
+const SummaryIcon = () => (
+  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+  </svg>
+);
+
+const TeamIcon = () => (
+  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
+    <circle cx="9" cy="7" r="4" />
+    <path d="M23 21v-2a4 4 0 00-3-3.87" />
+    <path d="M16 3.13a4 4 0 010 7.75" />
+  </svg>
+);
+
+const MoreIcon = () => (
+  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <path d="M4 6h16M4 12h16M4 18h16" />
   </svg>
 );
 
@@ -460,27 +500,47 @@ const PerformanceReviewScreen: React.FC = () => {
     <>
       {/* ==================== DESKTOP ==================== */}
       <div className="hidden md:flex flex-col h-full overflow-hidden">
-        <div className="bg-white border-b border-slate-100 px-8 py-4 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-3">
-            <Logo size={28} />
-            <div>
-              <h1 className="text-xl font-bold text-slate-900">{data.title}</h1>
-              <p className="text-sm text-slate-400 mt-0.5">Executive Summary</p>
+        {/* Header matches DailyWorkSummaryScreen's so the two report
+            screens feel like the same family. Title is the label-free
+            report name; the range label goes in the subtitle slot where
+            Daily puts its dateLabel. */}
+        <header className="bg-white border-b border-slate-200 px-6 py-4 shrink-0">
+          <div className="flex items-center justify-between max-w-[1100px] mx-auto w-full">
+            <div className="flex items-center gap-3">
+              <Logo size={28} />
+              <div>
+                <h1 className="text-lg font-bold text-slate-900">Performance Review</h1>
+                <p className="text-xs text-slate-400">{data.rangeLabel}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                aria-label="Copy summary"
+                title="Copy summary"
+                className="w-9 h-9 rounded-xl border border-slate-200 flex items-center justify-center hover:bg-slate-50 transition-colors"
+              >
+                <CopyIcon />
+              </button>
+              <button
+                type="button"
+                aria-label="Email summary"
+                title="Email summary"
+                className="w-9 h-9 rounded-xl border border-slate-200 flex items-center justify-center hover:bg-slate-50 transition-colors"
+              >
+                <EmailIcon />
+              </button>
+              <button
+                type="button"
+                aria-label="Download as PDF"
+                title="Download as PDF"
+                className="w-9 h-9 rounded-xl border border-slate-200 flex items-center justify-center hover:bg-slate-50 transition-colors"
+              >
+                <DownloadIcon />
+              </button>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <button className="w-9 h-9 rounded-xl border border-slate-200 flex items-center justify-center text-slate-400 hover:text-slate-600">
-              <CopyIcon />
-            </button>
-            <button className="w-9 h-9 rounded-xl border border-slate-200 flex items-center justify-center text-slate-400 hover:text-slate-600">
-              <EmailIcon />
-            </button>
-            <button className="w-9 h-9 rounded-xl border border-slate-200 flex items-center justify-center text-slate-400 hover:text-slate-600">
-              <DownloadIcon />
-            </button>
-            <span className="px-3 py-1 bg-red-50 text-red-600 text-xs font-semibold rounded-full border border-red-200">PDF Export</span>
-          </div>
-        </div>
+        </header>
 
         <div className="flex-1 overflow-auto hide-scrollbar">
           <div className="max-w-[1100px] mx-auto p-8 space-y-6">
@@ -499,23 +559,43 @@ const PerformanceReviewScreen: React.FC = () => {
 
       {/* ==================== MOBILE ==================== */}
       <div className="md:hidden flex flex-col h-full overflow-hidden">
-        <div className="bg-white border-b border-slate-100 px-4 py-3 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <Logo size={24} />
-            <div className="min-w-0">
-              <h1 className="text-sm font-bold text-slate-900 truncate">{data.title}</h1>
-              <p className="text-[10px] text-slate-400 truncate">Executive Summary</p>
+        {/* Header matches DailyWorkSummaryScreen's mobile header —
+            same logo size, same title/subtitle treatment — so the
+            two report screens feel like one family on phones too. */}
+        <header className="bg-white border-b border-slate-100 px-4 py-3 shrink-0">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <Logo size={24} />
+              <div className="min-w-0">
+                <h1 className="text-sm font-bold text-slate-900 truncate">Performance Review</h1>
+                <p className="text-[10px] text-slate-400 truncate">{data.rangeLabel}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                type="button"
+                aria-label="Copy summary"
+                className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center hover:bg-slate-50 transition-colors"
+              >
+                <CopyIcon />
+              </button>
+              <button
+                type="button"
+                aria-label="Email summary"
+                className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center hover:bg-slate-50 transition-colors"
+              >
+                <EmailIcon />
+              </button>
+              <button
+                type="button"
+                aria-label="Download as PDF"
+                className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center hover:bg-slate-50 transition-colors"
+              >
+                <DownloadIcon />
+              </button>
             </div>
           </div>
-          <div className="flex items-center gap-1.5 shrink-0">
-            <button className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center text-slate-400">
-              <CopyIcon />
-            </button>
-            <button className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center text-slate-400">
-              <DownloadIcon />
-            </button>
-          </div>
-        </div>
+        </header>
 
         <div className="flex-1 overflow-y-auto bg-slate-50 p-4 space-y-4">
           <KPICards kpis={data.kpis} />
@@ -529,19 +609,20 @@ const PerformanceReviewScreen: React.FC = () => {
 
         <nav className="bg-white border-t border-slate-100 px-2 pb-6 pt-2 flex items-center justify-around shrink-0">
           <button onClick={() => navigate('home')} className="flex flex-col items-center gap-1 text-slate-400">
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <rect x="3" y="3" width="7" height="7" rx="1" />
-              <rect x="14" y="3" width="7" height="7" rx="1" />
-              <rect x="3" y="14" width="7" height="7" rx="1" />
-              <rect x="14" y="14" width="7" height="7" rx="1" />
-            </svg>
+            <TrackerIcon />
             <span className="text-[10px]">Tracker</span>
           </button>
           <button onClick={() => navigate('prepare-summary')} className="flex flex-col items-center gap-1 text-blue-500">
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
+            <SummaryIcon />
             <span className="text-[10px] font-semibold">Summary</span>
+          </button>
+          <button className="flex flex-col items-center gap-1 text-slate-400">
+            <TeamIcon />
+            <span className="text-[10px]">Team</span>
+          </button>
+          <button className="flex flex-col items-center gap-1 text-slate-400">
+            <MoreIcon />
+            <span className="text-[10px]">More</span>
           </button>
         </nav>
       </div>
