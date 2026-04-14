@@ -3,8 +3,10 @@
 // ------------------------------------------------------------
 // Cleaved off Settings as part of the IA refinement: this owns
 // identity (avatar, name, email, role), the user-specific summary
-// default audience, plan/billing, and Sign Out. Settings is now
-// strictly about how the app *works*; this is about who you are.
+// default audience, and Sign Out. Settings is now strictly about
+// how the app *works*; this is about who you are. Plan & Billing
+// lives under Settings — we removed the Free Plan card because
+// launch is free-only and the card was just noise.
 //
 // Keeps the same SettingsShell visual language so it doesn't feel
 // like a different product.
@@ -297,32 +299,6 @@ export const ProfileScreen: React.FC = () => {
               </p>
             </div>
           )}
-        </section>
-
-        {/* ===== Plan & Billing ===== */}
-        <section className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-          <header className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-            <div>
-              <h2 className="text-sm font-bold text-slate-900">Plan & Billing</h2>
-              <p className="text-xs text-slate-500 mt-0.5">Subscription, invoices, and payment method.</p>
-            </div>
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-              Soon
-            </span>
-          </header>
-          <div className="px-5 py-4 flex items-center justify-between">
-            <div>
-              <p className="text-sm font-semibold text-slate-900">Free Plan</p>
-              <p className="text-xs text-slate-500">All core tracking and reporting features.</p>
-            </div>
-            <button
-              type="button"
-              disabled
-              className="px-3 py-1.5 text-xs font-semibold text-slate-400 border border-slate-200 rounded-lg cursor-not-allowed"
-            >
-              Manage
-            </button>
-          </div>
         </section>
 
         {/* ===== Sign Out ===== */}

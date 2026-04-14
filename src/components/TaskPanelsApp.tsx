@@ -540,9 +540,19 @@ export const TaskPanelsApp: React.FC<TaskPanelsAppProps> = ({ authUser }) => {
   if (screen === 'onboarding') {
     return (
       <OnboardingScreen
-        onComplete={({ roleId: _roleId, audience: _audience }) => {
+        onComplete={({ roleLabel, audienceLabel }) => {
           // Reload the catalog from localStorage (OnboardingScreen persisted it).
           setPanelCatalog(loadCatalog());
+          // Seed the user's profile with the role + audience they picked
+          // during onboarding so ProfileScreen isn't mysteriously empty
+          // and the daily-summary form pre-fills the right audience. We
+          // only write if the user hasn't already filled these fields
+          // themselves (e.g. re-onboarding later shouldn't clobber a
+          // manually-tuned role).
+          updateProfile({
+            role: userProfile.role.trim() || roleLabel,
+            defaultAudience: userProfile.defaultAudience.trim() || audienceLabel,
+          });
           navigate('home');
         }}
       />

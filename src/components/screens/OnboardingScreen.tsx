@@ -26,8 +26,15 @@ import { PANEL_COLOR_OPTIONS, saveCatalog, colorOptionFor } from '../../lib/pane
 type Step = 1 | 2 | 3 | 4 | 5;
 
 interface OnboardingScreenProps {
-  /** Called once the user completes onboarding, with the seeded catalog. */
-  onComplete: (result: { roleId: string; audience: SummaryAudience }) => void;
+  /** Called once the user completes onboarding. The caller receives both
+   *  the raw ids (for routing / logic) and the human-readable labels so
+   *  they can seed the user's profile without re-looking them up. */
+  onComplete: (result: {
+    roleId: string;
+    audience: SummaryAudience;
+    roleLabel: string;
+    audienceLabel: string;
+  }) => void;
 }
 
 // ---- Shared Components ----
@@ -141,7 +148,15 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onComplete }
       audience,
     });
 
-    onComplete({ roleId, audience });
+    // Look up human-readable labels so the parent can seed the user's
+    // profile (role + defaultAudience) without re-importing the lookup
+    // tables. Falls back gracefully if the id isn't found.
+    const roleLabel =
+      WORK_ROLES.find(r => r.id === roleId)?.label ?? 'General Knowledge Work';
+    const audienceLabel =
+      AUDIENCE_OPTIONS.find(o => o.id === audience)?.label ?? 'Manager';
+
+    onComplete({ roleId, audience, roleLabel, audienceLabel });
   }, [selectedRole, selectedPanels, audience, onComplete]);
 
   // ---- Step Renderers ----

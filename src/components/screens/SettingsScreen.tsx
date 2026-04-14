@@ -2,15 +2,19 @@
 // Settings — "How TaskPanels works"
 // ------------------------------------------------------------
 // Top-level structure (post IA cleanup):
-//   * Preferences   — visual defaults, day view, break/lunch
-//   * Notifications — when the app nudges you
-//   * Reporting     — summary defaults, email template, daily email
-//   * Workspace     — Projects (primary), Panels, Advanced Labels
-//   * Advanced      — data export, integrations, reset
+//   * Preferences    — visual defaults, day view, break/lunch
+//   * Notifications  — when the app nudges you
+//   * Reporting      — summary defaults, email template, daily email
+//   * Workspace      — Projects (primary), Panels, Advanced Labels
+//   * Plan & Billing — subscription, payment, invoices (placeholder)
+//   * Advanced       — data export, integrations, reset
 //
 // "Who I am" lives in ProfileScreen now (avatar, name, email,
-// role, default audience, plan/billing, sign out). Settings is
-// strictly about how the product behaves.
+// role, default audience, sign out). Settings is strictly about
+// how the product behaves. Plan & Billing sits here because it
+// governs *what the app can do*, not who you are — and launch is
+// free-only, so we removed the Free Plan card entirely and just
+// parked a Manage entry for future subscription work.
 //
 // Most sub-pages are stubs for now. The functional surface in
 // this phase is Projects, the new first-class workflow object.
@@ -179,6 +183,22 @@ const buildSections = (handlers: SectionHandlers): SectionDef[] => [
     ],
   },
   {
+    id: 'billing',
+    title: 'Plan & Billing',
+    description: 'Subscription, payment method, and invoices',
+    icon: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+        <rect x="2" y="5" width="20" height="14" rx="2" />
+        <line x1="2" y1="10" x2="22" y2="10" />
+      </svg>
+    ),
+    items: [
+      { label: 'Manage Subscription', soon: true, hint: 'Upgrade, downgrade, or cancel your plan' },
+      { label: 'Payment Method', soon: true },
+      { label: 'Invoices', soon: true },
+    ],
+  },
+  {
     id: 'advanced',
     title: 'Advanced',
     description: 'Data, integrations, and developer-style controls',
@@ -225,8 +245,8 @@ const SettingsHome: React.FC = () => {
     // back chevron should land you back on the tracker, not loop to itself.
     <SettingsShell title="Settings" backTo="home">
       <p className="text-sm text-slate-500 mb-6">
-        How TaskPanels works. For your account, avatar, and billing,
-        head to <button type="button" onClick={() => navigate('profile')} className="text-blue-600 hover:text-blue-700 font-semibold underline-offset-2 hover:underline">your profile</button>.
+        How TaskPanels works. For your account, avatar, and personal
+        info, head to <button type="button" onClick={() => navigate('profile')} className="text-blue-600 hover:text-blue-700 font-semibold underline-offset-2 hover:underline">your profile</button>.
       </p>
       <div className="space-y-4">
         {sections.map(section => (
