@@ -52,8 +52,26 @@ import {
 import {
   loadProfile,
   saveProfile,
+  type AuthProvider,
   type UserProfile,
 } from '../lib/profile';
+
+/** Minimal identity shape the shell cares about. App.tsx pulls this
+ *  from Supabase's `user` object; preview.tsx leaves it undefined. */
+export interface TaskPanelsAuthUser {
+  name: string | null;
+  email: string | null;
+  avatarUrl: string | null;
+  provider: AuthProvider;
+}
+
+interface TaskPanelsAppProps {
+  /** Optional signed-in identity. When present, the shell hydrates
+   *  userProfile's email/name/ssoAvatarUrl/authProvider from it on
+   *  mount and whenever those primitive values change. Preserves any
+   *  user-edited name and any uploaded avatarDataUrl. */
+  authUser?: TaskPanelsAuthUser | null;
+}
 
 // ---- Settings defaults ----
 const DEFAULT_BREAK_MS = 15 * 60 * 1000; // 15 minutes
@@ -94,7 +112,7 @@ const parseScreen = (search: string): PreviewScreen => {
     : 'home';
 };
 
-export const TaskPanelsApp: React.FC = () => {
+export const TaskPanelsApp: React.FC<TaskPanelsAppProps> = ({ authUser }) => {
   const [screen, setScreen] = useState<PreviewScreen>(initialScreen);
   const [selectedPanelId, setSelectedPanelId] = useState<string | null>(null);
 
@@ -124,6 +142,46 @@ export const TaskPanelsApp: React.FC = () => {
   const updateProfile = useCallback((patch: Partial<UserProfile>) => {
     setUserProfile(prev => ({ ...prev, ...patch }));
   }, []);
+
+  // Hydrate profile from the authenticated Supabase user.
+  // Rules:
+  //   - email          → always overwrite (auth is the source of truth)
+  //   - name           → keep user-edited value if non-empty, else use SSO
+  //   - ssoAvatarUrl   → always refresh (Google photo may have changed)
+  //   - authProvider   → always reflect current session
+  //   - avatarDataUrl  → preserve (user's uploaded photo always wins)
+  //   - role / defaultAudience → preserve (user-owned prefs)
+  // Depends on primitive values so a new authUser object reference
+  // without changed fields does not re-trigger the effect.
+  const authEmail = authUser?.email ?? null;
+  const authName = authUser?.name ?? null;
+  const authAvatar = authUser?.avatarUrl ?? null;
+  const authProvider = authUser?.provider ?? null;
+  useEffect(() => {
+    if (!authUser) return;
+    setUserProfile(prev => {
+      const nextEmail = authEmail ?? prev.email;
+      const nextName = prev.name.trim() ? prev.name : (authName ?? '');
+      const nextSso = authAvatar;
+      const nextProvider = authProvider ?? prev.authProvider;
+      if (
+        prev.email === nextEmail &&
+        prev.name === nextName &&
+        prev.ssoAvatarUrl === nextSso &&
+        prev.authProvider === nextProvider
+      ) {
+        return prev; // no change → React bails out, no re-render
+      }
+      return {
+        ...prev,
+        email: nextEmail,
+        name: nextName,
+        ssoAvatarUrl: nextSso,
+        authProvider: nextProvider,
+      };
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authEmail, authName, authAvatar, authProvider]);
 
   // ---- Runs (append-only tracked segments) ----
   const [runs, setRuns] = useState<Run[]>(() => loadRuns());
