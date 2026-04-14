@@ -68,7 +68,9 @@ const COLORS = {
   orange100: [255, 237, 213] as RGB,
 };
 
-const APP_URL = 'app.taskpanels.app';
+// Marketing site, not the app itself — recipients of a forwarded
+// PDF should land on the landing page, not the logged-in app.
+const APP_URL = 'taskpanels.app';
 const APP_NAME = 'TaskPanels';
 
 // ============================================================
@@ -148,7 +150,7 @@ export async function generateDailySummaryPdf(
 // ============================================================
 
 /** Brand header: logo (4 dots) + "TaskPanels" wordmark on the
- *  left, "app.taskpanels.app" URL on the right. Sits at the top
+ *  left, "taskpanels.app" URL on the right. Sits at the top
  *  of page 1 only. */
 function drawHeader(doc: jsPDF, y: number): number {
   const startY = y;

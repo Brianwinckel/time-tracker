@@ -23,7 +23,9 @@
 
 import type { DailySummaryData } from './summaryModel';
 
-const APP_URL = 'https://app.taskpanels.app';
+// Marketing site, not the app itself — recipients of a forwarded
+// report should land on the landing page, not the logged-in app.
+const APP_URL = 'https://taskpanels.app';
 const APP_NAME = 'TaskPanels';
 
 /** Build the plain-text Daily Work Summary that the Copy and
