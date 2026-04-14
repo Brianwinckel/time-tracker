@@ -13,6 +13,7 @@ import { PrepareSummaryScreen } from './screens/PrepareSummaryScreen';
 import { DailyWorkSummaryScreen } from './screens/DailyWorkSummaryScreen';
 import { PerformanceReviewScreen } from './screens/PerformanceReviewScreen';
 import { SummaryArchiveScreen } from './screens/SummaryArchiveScreen';
+import { TeamGateScreen } from './screens/TeamGateScreen';
 import { PickPanelScreen } from './screens/PickPanelScreen';
 import { OnboardingScreen } from './screens/OnboardingScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
@@ -92,6 +93,7 @@ const VALID_SCREENS: PreviewScreen[] = [
   'daily-summary',
   'performance-review',
   'summary-archive',
+  'team',
   'profile',
   'settings',
   'settings-projects',
@@ -621,6 +623,7 @@ export const TaskPanelsApp: React.FC<TaskPanelsAppProps> = ({ authUser }) => {
     screen === 'daily-summary' ||
     screen === 'performance-review' ||
     screen === 'summary-archive';
+  const isTeam = screen === 'team';
   const isSettings =
     screen === 'settings' ||
     screen === 'settings-projects' ||
@@ -660,7 +663,11 @@ export const TaskPanelsApp: React.FC<TaskPanelsAppProps> = ({ authUser }) => {
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
             </button>
-            <button className="w-10 h-10 rounded-xl flex items-center justify-center text-slate-400 hover:bg-slate-50" title="Team (coming soon)">
+            <button
+              onClick={() => navigate('team')}
+              className={`w-10 h-10 rounded-xl flex items-center justify-center ${isTeam ? 'bg-blue-50 text-blue-600' : 'text-slate-400 hover:bg-slate-50'}`}
+              title="Team"
+            >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 00-3-3.87" /><path d="M16 3.13a4 4 0 010 7.75" /></svg>
             </button>
           </div>
@@ -697,6 +704,8 @@ export const TaskPanelsApp: React.FC<TaskPanelsAppProps> = ({ authUser }) => {
             <PerformanceReviewScreen />
           ) : screen === 'summary-archive' ? (
             <SummaryArchiveScreen />
+          ) : isTeam ? (
+            <TeamGateScreen />
           ) : isSettings ? (
             <SettingsScreen />
           ) : isProfile ? (
@@ -705,8 +714,8 @@ export const TaskPanelsApp: React.FC<TaskPanelsAppProps> = ({ authUser }) => {
 
           {/* ===== Mobile Bottom Tab Bar — Tracker / Summary / Team / Settings =====
               Profile lives in the home header avatar on mobile so we don't
-              show the same icon twice. Team is a coming-soon stub. */}
-          {(isHome || isSettings || isProfile || screen === 'summary-archive') && (
+              show the same icon twice. Team links to the paywall preview. */}
+          {(isHome || isSettings || isProfile || isTeam || screen === 'summary-archive') && (
             <nav className="md:hidden bg-white border-t border-slate-100 px-2 pb-6 pt-2 flex items-center justify-around shrink-0">
               <button onClick={() => navigate('home')} className={`flex flex-col items-center gap-0.5 px-3 py-1 ${isHome ? 'text-blue-500' : 'text-slate-400'}`}>
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></svg>
@@ -716,9 +725,13 @@ export const TaskPanelsApp: React.FC<TaskPanelsAppProps> = ({ authUser }) => {
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                 <span className={`text-[10px] ${screen === 'summary-archive' ? 'font-semibold' : 'font-medium'}`}>Summary</span>
               </button>
-              <button className="flex flex-col items-center gap-0.5 px-3 py-1 text-slate-400" title="Team (coming soon)">
+              <button
+                onClick={() => navigate('team')}
+                className={`flex flex-col items-center gap-0.5 px-3 py-1 ${isTeam ? 'text-blue-500' : 'text-slate-400'}`}
+                title="Team"
+              >
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 00-3-3.87" /><path d="M16 3.13a4 4 0 010 7.75" /></svg>
-                <span className="text-[10px] font-medium">Team</span>
+                <span className={`text-[10px] ${isTeam ? 'font-semibold' : 'font-medium'}`}>Team</span>
               </button>
               <button onClick={() => navigate('settings')} className={`flex flex-col items-center gap-0.5 px-3 py-1 ${isSettings ? 'text-blue-500' : 'text-slate-400'}`}>
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><circle cx="12" cy="12" r="3" /></svg>
