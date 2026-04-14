@@ -11,7 +11,7 @@
 // The Scorecard now surfaces the generator's KPIs instead.
 // ============================================================
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useNav } from '../../lib/previewNav';
 import {
   formatHM,
@@ -23,6 +23,7 @@ import {
   type TimelineEntry,
   type KPI,
 } from '../../lib/summaryModel';
+import { toPlainText, buildMailtoUrl } from '../../lib/summaryExport';
 
 const Logo = ({ size = 28 }: { size?: number }) => (
   <svg width={size} height={size} viewBox="0 0 28 28" fill="none">
@@ -52,6 +53,24 @@ const DownloadIcon = () => (
     <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
     <polyline points="7 10 12 15 17 10" />
     <line x1="12" y1="15" x2="12" y2="3" />
+  </svg>
+);
+
+// Swapped in for the Copy icon for ~2s after the user taps Copy,
+// so they get a visible confirmation that the clipboard write landed.
+const CheckIconSmall = () => (
+  <svg className="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+    <path d="M5 13l4 4L19 7" />
+  </svg>
+);
+
+// Spinner used on the Download button while the PDF is being
+// generated — the jspdf import + drawing can take a beat on
+// mobile, so we don't want the user double-tapping.
+const SpinnerIcon = () => (
+  <svg className="w-4 h-4 text-slate-500 animate-spin" fill="none" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth={3} strokeOpacity={0.25} />
+    <path d="M12 2a10 10 0 0110 10" stroke="currentColor" strokeWidth={3} strokeLinecap="round" />
   </svg>
 );
 
@@ -625,6 +644,52 @@ export const DailyWorkSummaryScreen: React.FC = () => {
     [currentSummary],
   );
 
+  // ---- Toolbar handlers: Copy / Email / Download --------------
+  // `copied` flips the clipboard button's icon to a green check for
+  // ~2 seconds so the user gets a visible "it worked" signal —
+  // clipboard writes are silent otherwise.
+  // `downloading` gates the Download button while jspdf loads and
+  // renders the PDF, so double-taps don't kick off a second render.
+  const [copied, setCopied] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+
+  const handleCopy = async () => {
+    if (!data) return;
+    try {
+      await navigator.clipboard.writeText(toPlainText(data));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard can reject in insecure contexts / permissions-denied.
+      // Silently ignore — the Email/Download paths are unaffected.
+    }
+  };
+
+  const handleEmail = () => {
+    if (!data) return;
+    // mailto: can't attach files, so the body holds the plain-text
+    // report plus a nudge pointing the recipient at the Download
+    // button for the branded PDF (see summaryExport.toEmailParts).
+    window.location.href = buildMailtoUrl(data);
+  };
+
+  const handleDownload = async () => {
+    if (!data || downloading) return;
+    setDownloading(true);
+    try {
+      // Dynamic import keeps jspdf out of the initial bundle — users
+      // who never download a PDF never pay for the ~100kb of ship.
+      const { generateDailySummaryPdf, downloadBlob, filenameForSummary } =
+        await import('../../lib/summaryPdf');
+      const blob = await generateDailySummaryPdf(data);
+      downloadBlob(blob, filenameForSummary(data.dateLabel));
+    } catch (err) {
+      console.error('Failed to generate PDF', err);
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   if (!data) {
     return (
       <div className="flex flex-col h-full overflow-hidden">
@@ -647,14 +712,33 @@ export const DailyWorkSummaryScreen: React.FC = () => {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <button className="w-9 h-9 rounded-xl border border-slate-200 flex items-center justify-center hover:bg-slate-50 transition-colors">
-                <CopyIcon />
+              <button
+                type="button"
+                onClick={handleCopy}
+                aria-label={copied ? 'Copied to clipboard' : 'Copy summary as plain text'}
+                title={copied ? 'Copied!' : 'Copy as plain text'}
+                className="w-9 h-9 rounded-xl border border-slate-200 flex items-center justify-center hover:bg-slate-50 transition-colors"
+              >
+                {copied ? <CheckIconSmall /> : <CopyIcon />}
               </button>
-              <button className="w-9 h-9 rounded-xl border border-slate-200 flex items-center justify-center hover:bg-slate-50 transition-colors">
+              <button
+                type="button"
+                onClick={handleEmail}
+                aria-label="Email summary"
+                title="Email summary"
+                className="w-9 h-9 rounded-xl border border-slate-200 flex items-center justify-center hover:bg-slate-50 transition-colors"
+              >
                 <EmailIcon />
               </button>
-              <button className="w-9 h-9 rounded-xl border border-slate-200 flex items-center justify-center hover:bg-slate-50 transition-colors">
-                <DownloadIcon />
+              <button
+                type="button"
+                onClick={handleDownload}
+                disabled={downloading}
+                aria-label={downloading ? 'Generating PDF' : 'Download summary as PDF'}
+                title={downloading ? 'Generating PDF…' : 'Download as PDF'}
+                className="w-9 h-9 rounded-xl border border-slate-200 flex items-center justify-center hover:bg-slate-50 transition-colors disabled:opacity-60 disabled:cursor-wait"
+              >
+                {downloading ? <SpinnerIcon /> : <DownloadIcon />}
               </button>
             </div>
           </div>
@@ -691,14 +775,30 @@ export const DailyWorkSummaryScreen: React.FC = () => {
               </div>
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
-              <button className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center">
-                <CopyIcon />
+              <button
+                type="button"
+                onClick={handleCopy}
+                aria-label={copied ? 'Copied to clipboard' : 'Copy summary as plain text'}
+                className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center"
+              >
+                {copied ? <CheckIconSmall /> : <CopyIcon />}
               </button>
-              <button className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center">
+              <button
+                type="button"
+                onClick={handleEmail}
+                aria-label="Email summary"
+                className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center"
+              >
                 <EmailIcon />
               </button>
-              <button className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center">
-                <DownloadIcon />
+              <button
+                type="button"
+                onClick={handleDownload}
+                disabled={downloading}
+                aria-label={downloading ? 'Generating PDF' : 'Download summary as PDF'}
+                className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center disabled:opacity-60 disabled:cursor-wait"
+              >
+                {downloading ? <SpinnerIcon /> : <DownloadIcon />}
               </button>
             </div>
           </div>
