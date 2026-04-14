@@ -3,10 +3,13 @@
 // ------------------------------------------------------------
 // Cleaved off Settings as part of the IA refinement: this owns
 // identity (avatar, name, email, role), the user-specific summary
-// default audience, and Sign Out. Settings is now strictly about
-// how the app *works*; this is about who you are. Plan & Billing
-// lives under Settings — we removed the Free Plan card because
-// launch is free-only and the card was just noise.
+// default audience, plan/billing, and Sign Out. Settings is now
+// strictly about how the app *works*; this is about who you are.
+//
+// Plan & Billing is a placeholder: launch is free-only, so we
+// don't show a "Free Plan" card — just a row list with Manage
+// Subscription / Payment Method / Invoices marked "Soon" so the
+// slot is reserved for future subscription work.
 //
 // Keeps the same SettingsShell visual language so it doesn't feel
 // like a different product.
@@ -299,6 +302,49 @@ export const ProfileScreen: React.FC = () => {
               </p>
             </div>
           )}
+        </section>
+
+        {/* ===== Plan & Billing =====
+             No "Free Plan" card — launch is free-only, so showing a plan
+             name would be noise. Instead we park the slot with the three
+             rows a future subscription flow will need (Manage, Payment,
+             Invoices), all marked Soon. Wire them up when Stripe lands. */}
+        <section className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+          <header className="px-5 py-4 border-b border-slate-100">
+            <h2 className="text-sm font-bold text-slate-900">Plan & Billing</h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Subscription, payment method, and invoices.
+            </p>
+          </header>
+          <ul>
+            {[
+              {
+                label: 'Manage Subscription',
+                hint: 'Upgrade, downgrade, or cancel your plan',
+              },
+              { label: 'Payment Method', hint: null },
+              { label: 'Invoices', hint: null },
+            ].map((item, i, arr) => (
+              <li
+                key={item.label}
+                className={`px-5 py-3 flex items-center justify-between ${
+                  i < arr.length - 1 ? 'border-b border-slate-100' : ''
+                }`}
+              >
+                <div className="min-w-0">
+                  <p className="text-sm text-slate-700 truncate">{item.label}</p>
+                  {item.hint && (
+                    <p className="text-[11px] text-slate-400 truncate mt-0.5">
+                      {item.hint}
+                    </p>
+                  )}
+                </div>
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 shrink-0 ml-3">
+                  Soon
+                </span>
+              </li>
+            ))}
+          </ul>
         </section>
 
         {/* ===== Sign Out ===== */}
