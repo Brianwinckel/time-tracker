@@ -1,0 +1,162 @@
+@import "tailwindcss";
+
+/* ---- Tailwind Theme (same as main app) ---- */
+@theme {
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* ---- Base (clean — no legacy overrides) ---- */
+* {
+  font-family: 'Inter', -apple-system, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  background: #f8fafc;
+}
+
+/* ---- V6 Animations ---- */
+.panel-card {
+  transition: all 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+  cursor: pointer;
+}
+.panel-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(0,0,0,0.08);
+}
+.panel-card:active {
+  transform: scale(0.98);
+}
+
+@keyframes timer-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+.timer-pulse {
+  animation: timer-pulse 2s ease-in-out infinite;
+}
+
+.hide-scrollbar::-webkit-scrollbar { display: none; }
+.hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* ---- Time Slider (range input) ---- */
+.time-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  border-radius: 9999px;
+  background: #e2e8f0;
+  outline: none;
+  cursor: pointer;
+}
+.time-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 9999px;
+  background: var(--accent, #10b981);
+  border: 2px solid white;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+  cursor: pointer;
+}
+.time-slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 9999px;
+  background: var(--accent, #10b981);
+  border: 2px solid white;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+  cursor: pointer;
+}
+
+/* ---- Work Type Chips ---- */
+.work-chip {
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+.work-chip.selected {
+  border-color: var(--accent-border, #a7f3d0);
+  background: var(--accent-soft, #ecfdf5);
+  color: var(--accent-text, #059669);
+}
+
+/* ---- Session State Toggle ---- */
+.state-toggle {
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+.state-toggle.on {
+  border-color: var(--accent-border, #a7f3d0);
+  background: var(--accent-soft, #ecfdf5);
+  color: var(--accent-text, #059669);
+}
+
+/* ---- Color Picker Dots ---- */
+.color-opt {
+  cursor: pointer;
+  transition: all 0.15s ease;
+  border: 2px solid transparent;
+}
+.color-opt.ring {
+  ring: 2px;
+  ring-offset: 2px;
+  box-shadow: 0 0 0 2px white, 0 0 0 4px #10b981;
+}
+
+/* ---- Icon Picker ---- */
+.icon-opt {
+  cursor: pointer;
+  transition: all 0.15s ease;
+  border-color: #e2e8f0;
+  background: white;
+  color: #94a3b8;
+}
+.icon-opt.selected {
+  border-color: var(--accent-border, #a7f3d0);
+  background: var(--accent-soft, #ecfdf5);
+  color: var(--accent-text, #059669);
+}
+
+/* ---- Report Type Toggle ---- */
+.report-type { transition: all 0.15s ease; cursor: pointer; user-select: none; }
+.report-type.active { background: #1e293b; color: #fff; }
+
+/* ---- Outcome Chips ---- */
+.outcome-chip { transition: all 0.15s ease; cursor: pointer; user-select: none; }
+.outcome-chip:active { transform: scale(0.96); }
+.outcome-chip.selected-completed { background: #ecfdf5; border-color: #6ee7b7; color: #059669; }
+.outcome-chip.selected-progress { background: #eff6ff; border-color: #93c5fd; color: #2563eb; }
+.outcome-chip.selected-blocked { background: #fff7ed; border-color: #fdba74; color: #c2410c; }
+.outcome-chip.selected-review { background: #fefce8; border-color: #fde047; color: #a16207; }
+.outcome-chip.selected-followup { background: #f5f3ff; border-color: #c4b5fd; color: #7c3aed; }
+.outcome-chip.selected-abandoned { background: #fef2f2; border-color: #fca5a5; color: #dc2626; }
+
+/* ---- Choice Chips (audience / style) ---- */
+.choice-chip { transition: all 0.15s ease; cursor: pointer; user-select: none; }
+.choice-chip:hover { background: #f1f5f9; }
+.choice-chip:active { transform: scale(0.96); }
+.choice-chip.selected { background: #eff6ff; border-color: #93c5fd; color: #2563eb; }
+
+/* ---- Include Toggle ---- */
+.include-toggle { transition: all 0.15s ease; cursor: pointer; user-select: none; }
+.include-toggle.on { background: #ecfdf5; border-color: #6ee7b7; color: #059669; }
+.include-toggle.off { background: #f8fafc; border-color: #e2e8f0; color: #94a3b8; }
+
+/* ---- Source Toggle ---- */
+.source-toggle { transition: all 0.15s ease; cursor: pointer; user-select: none; }
+.source-toggle.on { opacity: 1; }
+.source-toggle.off { opacity: 0.45; }
+
+/* ---- Effort Choice ---- */
+.effort-choice { transition: all 0.15s ease; cursor: pointer; user-select: none; }
+.effort-choice:active { transform: scale(0.96); }
+.effort-choice.selected-yes { background: #fefce8; border-color: #fde047; color: #a16207; }
+.effort-choice.selected-no { background: #f8fafc; border-color: #e2e8f0; color: #64748b; }
+
+/* ---- Conditional Detail Input ---- */
+.cond-input { transition: border-color 0.15s ease; }
+.cond-input:focus { border-color: #93c5fd; box-shadow: 0 0 0 3px rgba(147,197,253,0.15); }

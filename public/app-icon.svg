@@ -1,16 +1,11 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
-  <!-- Dark rounded background -->
-  <rect width="512" height="512" rx="96" fill="#1C2333"/>
-  <!-- Inner border glow -->
-  <rect x="8" y="8" width="496" height="496" rx="90" fill="none" stroke="#2A3654" stroke-width="4"/>
-  <!-- 4 colored squares - centered in the icon -->
-  <!-- Top-left: Blue -->
-  <rect x="116" y="116" width="120" height="120" rx="22" fill="#4A7FD4"/>
-  <!-- Top-right: Green with checkmark -->
-  <rect x="276" y="116" width="120" height="120" rx="22" fill="#3EAF6E"/>
-  <path d="M306 176 L326 196 L356 156" stroke="white" stroke-width="14" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-  <!-- Bottom-left: Orange -->
-  <rect x="116" y="276" width="120" height="120" rx="22" fill="#F0A030"/>
-  <!-- Bottom-right: Purple -->
-  <rect x="276" y="276" width="120" height="120" rx="22" fill="#8B5CB8"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Slate-900 backdrop so the saturated brand circles read at small sizes.
+       iOS will mask the corners; the rx is for non-iOS PWA installs. -->
+  <rect width="512" height="512" rx="96" fill="#0f172a"/>
+  <!-- Four-circle TaskPanels brand mark, scaled from the 32x32 favicon (16x).
+       Centers: (160,160) (352,160) (160,352) (352,352); radius 80. -->
+  <circle cx="160" cy="160" r="80" fill="#3b82f6"/>
+  <circle cx="352" cy="160" r="80" fill="#f97316"/>
+  <circle cx="160" cy="352" r="80" fill="#8b5cf6"/>
+  <circle cx="352" cy="352" r="80" fill="#10b981"/>
 </svg>

@@ -25,7 +25,7 @@ const tabs: { view: AppState['view']; label: string; icon: React.ReactNode }[] =
     ),
   },
   {
-    view: 'summary',
+    view: 'prepare-summary',
     label: 'Summary',
     icon: (
       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -37,8 +37,11 @@ const tabs: { view: AppState['view']; label: string; icon: React.ReactNode }[] =
     view: 'manager',
     label: 'Team',
     icon: (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-        <path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+        <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
+        <circle cx="9" cy="7" r="4" />
+        <path d="M23 21v-2a4 4 0 00-3-3.87" />
+        <path d="M16 3.13a4 4 0 010 7.75" />
       </svg>
     ),
   },
@@ -55,7 +58,7 @@ const tabs: { view: AppState['view']; label: string; icon: React.ReactNode }[] =
 
 export const BottomTabBar: React.FC<Props> = ({ view, onNavigate }) => {
   return (
-    <nav className="md:hidden bg-white border-t border-slate-100 px-2 pb-[env(safe-area-inset-bottom,6px)] pt-2 flex items-center justify-around shrink-0">
+    <nav className="md:hidden bg-white border-t border-slate-100 px-2 pb-6 pt-2 flex items-center justify-around shrink-0">
       {tabs.map(tab => (
         <button
           key={tab.view}
@@ -65,7 +68,7 @@ export const BottomTabBar: React.FC<Props> = ({ view, onNavigate }) => {
           aria-label={tab.label}
         >
           {tab.icon}
-          <span className="text-[10px] font-medium">{tab.label}</span>
+          <span className={`text-[10px] ${view === tab.view ? 'font-semibold' : 'font-medium'}`}>{tab.label}</span>
         </button>
       ))}
     </nav>

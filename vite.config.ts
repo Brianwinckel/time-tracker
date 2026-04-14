@@ -8,4 +8,12 @@ import path from 'path'
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   root: path.resolve(__dirname),
+  build: {
+    rollupOptions: {
+      input: {
+        main: path.resolve(__dirname, 'index.html'),
+        preview: path.resolve(__dirname, 'preview.html'),
+      },
+    },
+  },
 })

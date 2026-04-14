@@ -1,4 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
-  <rect width="32" height="32" rx="6" fill="#3EAF6E"/>
-  <path d="M8 16 L13 21 L24 10" stroke="white" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- Rounded white tile so the mark stays legible on any tab background -->
+  <rect width="32" height="32" rx="6" fill="#ffffff"/>
+  <!-- Four-circle TaskPanels brand mark, matches the in-app logo -->
+  <circle cx="10" cy="10" r="5" fill="#3b82f6"/>
+  <circle cx="22" cy="10" r="5" fill="#f97316"/>
+  <circle cx="10" cy="22" r="5" fill="#8b5cf6"/>
+  <circle cx="22" cy="22" r="5" fill="#10b981"/>
 </svg>

@@ -1,5 +1,5 @@
 // ============================================================
-// V6 Mobile Header — top bar with logo, title, dark mode, avatar
+// V6 Mobile Header — simplified (no dark mode toggle)
 // ============================================================
 
 import React from 'react';
@@ -7,12 +7,10 @@ import React from 'react';
 interface Props {
   title: string;
   userName?: string;
-  darkMode: boolean;
-  onToggleDarkMode: () => void;
   onAvatarClick?: () => void;
 }
 
-export const MobileHeader: React.FC<Props> = ({ title, userName, darkMode, onToggleDarkMode, onAvatarClick }) => {
+export const MobileHeader: React.FC<Props> = ({ title, userName, onAvatarClick }) => {
   const initials = userName
     ? userName.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
     : '?';
@@ -28,16 +26,6 @@ export const MobileHeader: React.FC<Props> = ({ title, userName, darkMode, onTog
       </svg>
 
       <span className="text-base font-bold text-slate-900 flex-1 truncate">{title}</span>
-
-      {/* Dark mode toggle */}
-      <button
-        onClick={onToggleDarkMode}
-        className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:bg-slate-50 transition-colors"
-        title={darkMode ? 'Light mode' : 'Dark mode'}
-        aria-label="Toggle dark mode"
-      >
-        <span className="text-sm">{darkMode ? '☀' : '☾'}</span>
-      </button>
 
       {/* Avatar */}
       <button

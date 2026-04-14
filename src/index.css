@@ -13,6 +13,64 @@
   --color-panel-indigo: #6366f1;
 }
 
+/* ---- V6 Animations ---- */
+
+/* Slow pulsing glow for active panel on dashboard */
+@keyframes active-glow {
+  0%, 100% { box-shadow: 0 0 15px -3px var(--glow-color, #3b82f6), 0 4px 6px -4px rgba(0,0,0,0.1); }
+  50% { box-shadow: 0 0 25px -2px var(--glow-color, #3b82f6), 0 8px 15px -4px rgba(0,0,0,0.1); }
+}
+
+.active-panel-glow {
+  animation: active-glow 3s ease-in-out infinite;
+}
+
+/* Picker card glow (more subtle) */
+@keyframes picker-glow {
+  0%, 100% { box-shadow: 0 0 10px -3px var(--glow-color, #3b82f6), 0 4px 6px -4px rgba(0,0,0,0.1); }
+  50% { box-shadow: 0 0 18px -2px var(--glow-color, #3b82f6), 0 6px 10px -4px rgba(0,0,0,0.1); }
+}
+
+.picker-card-glow {
+  animation: picker-glow 3s ease-in-out infinite;
+}
+
+/* Popup slide-in */
+@keyframes slide-up-fade {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-in {
+  animation: slide-up-fade 0.25s ease-out;
+}
+
+/* V6 Panel card interactions */
+.panel-card {
+  transition: all 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+  cursor: pointer;
+}
+.panel-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(0,0,0,0.08);
+}
+.panel-card:active {
+  transform: scale(0.98);
+}
+
+/* Timer pulse */
+@keyframes timer-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+.timer-pulse {
+  animation: timer-pulse 2s ease-in-out infinite;
+}
+
+/* Hide scrollbar but keep scrollable */
+.hide-scrollbar::-webkit-scrollbar { display: none; }
+.hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
 /* ============================================================
    TimeTracker — Global Styles (Legacy)
    ============================================================ */

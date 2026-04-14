@@ -16,6 +16,8 @@ import type { AppState } from '../../types';
 const viewTitles: Record<AppState['view'], string> = {
   dashboard: 'TaskPanels',
   summary: 'Daily Summary',
+  'prepare-summary': 'Prepare Summary',
+  review: 'Daily Report',
   settings: 'Settings',
   history: 'Backdate',
   manager: 'Team Dashboard',
@@ -34,10 +36,6 @@ export const AppShell: React.FC<Props> = ({ children }) => {
     dispatch({ type: 'SET_VIEW', view });
   };
 
-  const toggleDarkMode = () => {
-    dispatch({ type: 'UPDATE_SETTINGS', settings: { darkMode: !state.settings.darkMode } });
-  };
-
   return (
     <div className="flex h-screen overflow-hidden bg-slate-50 font-sans">
       {/* Desktop sidebar */}
@@ -49,14 +47,14 @@ export const AppShell: React.FC<Props> = ({ children }) => {
 
       {/* Main content column */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Mobile header */}
-        <MobileHeader
-          title={viewTitles[state.view]}
-          userName={state.settings.myName || profile?.name}
-          darkMode={state.settings.darkMode}
-          onToggleDarkMode={toggleDarkMode}
-          onAvatarClick={() => navigate('settings')}
-        />
+        {/* Mobile header — hidden on dashboard (dashboard has its own header) */}
+        {state.view !== 'dashboard' && (
+          <MobileHeader
+            title={viewTitles[state.view]}
+            userName={state.settings.myName || profile?.name}
+            onAvatarClick={() => navigate('settings')}
+          />
+        )}
 
         {/* Scrollable content area */}
         <main className="flex-1 overflow-auto">
