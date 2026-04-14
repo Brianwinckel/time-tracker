@@ -36,6 +36,31 @@ body {
   animation: timer-pulse 2s ease-in-out infinite;
 }
 
+/* ---- TaskPanels Logo — breathing loader ----
+   Each dot scales from 100% down to ~55% and back. Per-dot class
+   varies duration + delay so they drift out of phase and read as
+   "random" without any JS. transform-box: fill-box re-parents the
+   transform origin to the circle's own bounding box (otherwise
+   SVG transforms pivot around the canvas top-left). */
+@keyframes logo-breath {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(0.55); }
+}
+.logo-dot {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: logo-breath 1.6s ease-in-out infinite;
+  will-change: transform;
+}
+.logo-dot-1 { animation-duration: 1.7s; animation-delay: 0s;    }
+.logo-dot-2 { animation-duration: 2.1s; animation-delay: 0.35s; }
+.logo-dot-3 { animation-duration: 1.5s; animation-delay: 0.7s;  }
+.logo-dot-4 { animation-duration: 1.9s; animation-delay: 0.15s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .logo-dot { animation: none; }
+}
+
 .hide-scrollbar::-webkit-scrollbar { display: none; }
 .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 

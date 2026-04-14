@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <!-- Slate-900 backdrop so the saturated brand circles read at small sizes.
+  <!-- White tile so the brand mark sits clean on the home screen.
        iOS will mask the corners; the rx is for non-iOS PWA installs. -->
-  <rect width="512" height="512" rx="96" fill="#0f172a"/>
+  <rect width="512" height="512" rx="96" fill="#ffffff"/>
   <!-- Four-circle TaskPanels brand mark, scaled from the 32x32 favicon (16x).
        Centers: (160,160) (352,160) (160,352) (352,352); radius 80. -->
   <circle cx="160" cy="160" r="80" fill="#3b82f6"/>
