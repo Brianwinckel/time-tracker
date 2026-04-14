@@ -70,6 +70,20 @@ export const ProfileScreen: React.FC = () => {
     window.alert('Sign out is wired up in the production build.');
   };
 
+  // Walk the user back through the welcome → role → panels → audience
+  // → ready flow. Panel instances on home are stored independently of
+  // the catalog, so re-running onboarding only replaces the *templates*
+  // you can pick from — your live panels, tracked runs, projects, and
+  // profile stay put. We still prompt so the user isn't surprised when
+  // their starter catalog looks different afterwards.
+  const handleRerunSetup = () => {
+    const ok = window.confirm(
+      'Re-run setup? You\'ll walk through the welcome flow again to pick a new role and starter panels. This replaces your panel template list but leaves your tracked time, projects, and profile details alone.',
+    );
+    if (!ok) return;
+    navigate('onboarding');
+  };
+
   // Simulated Google sign-in. In production this kicks off OAuth and we
   // pull `name`, `email`, and `picture` from the ID token. Here we drop in
   // a deterministic mock photo so the avatar fallback chain is exercisable.
@@ -345,6 +359,30 @@ export const ProfileScreen: React.FC = () => {
               </li>
             ))}
           </ul>
+        </section>
+
+        {/* ===== Re-run Setup =====
+             Escape hatch for users who want to change their role or
+             starter panel picks without hand-editing the catalog. Lives
+             above Sign Out so "change my setup" and "end my session"
+             feel like related account-level actions. */}
+        <section className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+          <button
+            type="button"
+            onClick={handleRerunSetup}
+            className="w-full px-5 py-4 flex items-center justify-between text-left hover:bg-slate-50"
+          >
+            <div>
+              <p className="text-sm font-semibold text-slate-900">Re-run Setup</p>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Walk through the welcome flow again to pick a new role and starter panels.
+              </p>
+            </div>
+            <svg className="w-4 h-4 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+              <path d="M1 4v6h6" />
+              <path d="M3.51 15a9 9 0 102.13-9.36L1 10" />
+            </svg>
+          </button>
         </section>
 
         {/* ===== Sign Out ===== */}
