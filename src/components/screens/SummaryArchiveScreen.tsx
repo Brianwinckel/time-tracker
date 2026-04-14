@@ -1,22 +1,28 @@
 // ============================================================
 // SummaryArchiveScreen — "browse past daily summaries"
 // ------------------------------------------------------------
-// Wired to the Summary tab in the bottom nav. Shows a compact
-// daily summary for any selected date, reconstructed on-the-fly
-// from the append-only `runs` log. No new persistence layer —
-// runs are the source of truth, and we aggregate them per-day
-// when the user picks a date.
+// Wired to the Summary tab in the bottom nav. Two layers:
+//
+//   1. Ground-truth layer — totals, time-by-panel, and the
+//      timeline — are always reconstructed on-the-fly from the
+//      append-only `runs` log. Every day the app was used has
+//      this layer available, forever.
+//
+//   2. Narrative layer — the prose, outcomes, follow-ups, and
+//      blockers the user authored on Prepare Summary. This only
+//      exists for days the user actually generated a report on,
+//      and comes from the `savedSummaries` map persisted in
+//      localStorage. When present it renders above the ground
+//      truth so the user's curation reads first.
 //
 // Layout:
 //   * Header: back + "Summary Archive" + (Today jump when off-today)
 //   * Date navigator: ◀ [calendar button with date label] ▶
-//       - Tapping the date button expands a month calendar with
-//         dots on days that have tracked runs. Clicking a dotted
-//         day loads its summary.
-//       - Arrow buttons walk day-by-day (next disabled on today,
-//         since future days have nothing to show).
-//   * Body: totals + time-by-panel + timeline, or an empty state
-//     when no runs exist on the selected day.
+//       - Tapping the date button expands a month calendar.
+//         Days with a saved report get a blue dot; days that
+//         only have tracked runs get a lighter slate dot.
+//   * Body: narrative + outcomes (if saved) then totals + time-
+//     by-panel + timeline; or an empty state when no runs exist.
 //
 // Deleted panels: runs that reference a panel instance that was
 // later deleted still render — we show "Deleted panel" in slate
@@ -40,14 +46,18 @@ import {
   IDLE_PANEL_ID,
   LUNCH_PANEL_ID,
 } from '../../lib/panelCatalog';
-import { formatHM } from '../../lib/summaryModel';
+import {
+  formatHM,
+  generateDailySummary,
+  type DailySummaryData,
+} from '../../lib/summaryModel';
 
 // ============================================================
 // Main screen
 // ============================================================
 
 export const SummaryArchiveScreen: React.FC = () => {
-  const { navigate, runs, panels } = useNav();
+  const { navigate, runs, panels, savedSummaries, deleteSavedSummary } = useNav();
 
   // Which day's summary is currently rendered. Starts on today.
   const [selectedIso, setSelectedIso] = useState<string>(() => todayIso());
@@ -69,6 +79,22 @@ export const SummaryArchiveScreen: React.FC = () => {
   // idle runs count as "used" here since they still represent a
   // day the app was open.
   const usedDates = useMemo(() => getUsedDateSet(runs), [runs]);
+  // Dates that have a saved report get a brighter dot so the user
+  // can scan the calendar for "days I've already written up".
+  const savedDates = useMemo(
+    () => new Set(Object.keys(savedSummaries)),
+    [savedSummaries],
+  );
+
+  // If the user saved a report for this date, regenerate the rich
+  // DailySummaryData from the stored SummaryInput. Running through
+  // the generator (instead of storing the rendered output) means
+  // copy tweaks in summaryModel automatically reach old days.
+  const savedForDay = savedSummaries[selectedIso] ?? null;
+  const savedData: DailySummaryData | null = useMemo(
+    () => (savedForDay ? generateDailySummary(savedForDay) : null),
+    [savedForDay],
+  );
 
   // Runs that fall inside the selected day. Clipped to the local
   // 00:00–23:59 window so a run that straddles midnight doesn't
@@ -239,6 +265,7 @@ export const SummaryArchiveScreen: React.FC = () => {
               setMonth={setCalMonth}
               selectedIso={selectedIso}
               usedDates={usedDates}
+              savedDates={savedDates}
               onSelect={iso => {
                 setSelectedIso(iso);
                 setCalendarOpen(false);
@@ -246,6 +273,17 @@ export const SummaryArchiveScreen: React.FC = () => {
             />
           )}
         </section>
+
+        {/* ===== Saved narrative layer =====
+            Only rendered when the user actually hit Generate for
+            this day. Everything here comes from the saved
+            SummaryInput — the user's own words, not computed. */}
+        {savedData && hasData && (
+          <SavedNarrativeSections
+            data={savedData}
+            onDelete={() => deleteSavedSummary(selectedIso)}
+          />
+        )}
 
         {/* ===== Summary body ===== */}
         {!hasData ? (
@@ -405,14 +443,17 @@ export const SummaryArchiveScreen: React.FC = () => {
             {/* ----- CTA back to the prepare flow -----
                 For *today*, let the user jump into the formal Prepare
                 Summary flow (audience, style, generate). The archive
-                is meant for browsing; Prepare is for composing. */}
+                is meant for browsing; Prepare is for composing. When
+                there's already a saved report for today, the CTA
+                flips to "Update" so the user knows re-generating will
+                overwrite what's in the archive. */}
             {isToday && !isBreakOnly(workEntries.length) && (
               <button
                 type="button"
                 onClick={() => navigate('prepare-summary')}
                 className="w-full px-4 py-3 bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold rounded-xl flex items-center justify-center gap-2"
               >
-                Generate today's report
+                {savedData ? "Update today's report" : "Generate today's report"}
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
                   <path d="M13 7l5 5m0 0l-5 5m5-5H6" />
                 </svg>
@@ -431,6 +472,175 @@ function isBreakOnly(workPanelCount: number): boolean {
 }
 
 // ============================================================
+// Saved narrative sections
+// ------------------------------------------------------------
+// Renders the prose + outcome buckets from a DailySummaryData
+// (which we regenerate from the user's stored SummaryInput).
+// Only shown for days where the user actually hit "Generate" —
+// so everything here is the user's authored content, not
+// computed from runs.
+// ============================================================
+
+interface SavedNarrativeSectionsProps {
+  data: DailySummaryData;
+  onDelete: () => void;
+}
+
+const SavedNarrativeSections: React.FC<SavedNarrativeSectionsProps> = ({
+  data,
+  onDelete,
+}) => {
+  const hasNarrative = data.narrative.length > 0;
+  const hasCompleted = data.completed.length > 0;
+  const hasFollowUps = data.followUps.length > 0;
+  const hasBlockers = data.blockers.length > 0;
+
+  const handleDelete = () => {
+    const ok = window.confirm(
+      'Delete this saved report? The tracked runs (totals, panels, and timeline) will stay — only your written narrative, outcomes, follow-ups, and blockers will be removed. You can always re-generate.',
+    );
+    if (!ok) return;
+    onDelete();
+  };
+
+  return (
+    <>
+      {/* ----- Saved report badge + delete control ----- */}
+      <section className="flex items-center gap-2">
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-50 border border-blue-100 text-[11px] font-semibold text-blue-700">
+          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+            <path d="M5 13l4 4L19 7" />
+          </svg>
+          Saved report
+        </span>
+        <button
+          type="button"
+          onClick={handleDelete}
+          className="ml-auto text-[11px] font-semibold text-slate-400 hover:text-rose-600"
+        >
+          Delete
+        </button>
+      </section>
+
+      {/* ----- Narrative ----- */}
+      {hasNarrative && (
+        <section className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl p-5 text-white">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-6 h-6 rounded-md bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center">
+              <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+            </div>
+            <h2 className="text-[11px] font-semibold text-slate-300 uppercase tracking-wider">
+              Summary
+            </h2>
+          </div>
+          <div className="space-y-2">
+            {data.narrative.map((p, i) => (
+              <p
+                key={i}
+                className="text-sm leading-relaxed text-slate-300"
+              >
+                {stripMarkdownBold(p)}
+              </p>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* ----- Completed / Follow-ups / Blockers -----
+          Only render sections that actually have content. A day
+          where the user wrote prose but didn't mark outcomes
+          collapses down to just the narrative block above. */}
+      {(hasCompleted || hasFollowUps || hasBlockers) && (
+        <section className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+          {hasCompleted && (
+            <OutcomeList
+              title="Completed"
+              accent="emerald"
+              items={data.completed}
+              withDivider={hasFollowUps || hasBlockers}
+            />
+          )}
+          {hasFollowUps && (
+            <OutcomeList
+              title="Follow-ups"
+              accent="amber"
+              items={data.followUps}
+              withDivider={hasBlockers}
+            />
+          )}
+          {hasBlockers && (
+            <OutcomeList
+              title="Blockers"
+              accent="rose"
+              items={data.blockers}
+              withDivider={false}
+            />
+          )}
+        </section>
+      )}
+    </>
+  );
+};
+
+/** The narrative paragraphs use markdown-style **bold** for
+ *  quantities. This renderer is plain text so we strip those
+ *  markers rather than emit literal asterisks. Matches the
+ *  DailyWorkSummary behavior. */
+function stripMarkdownBold(s: string): string {
+  return s.replace(/\*\*(.+?)\*\*/g, '$1');
+}
+
+// Outcome list row — shared by Completed / Follow-ups / Blockers.
+type OutcomeAccent = 'emerald' | 'amber' | 'rose';
+
+const ACCENT_STYLES: Record<OutcomeAccent, { dot: string; label: string }> = {
+  emerald: { dot: 'bg-emerald-500', label: 'text-emerald-600' },
+  amber:   { dot: 'bg-amber-500',   label: 'text-amber-600' },
+  rose:    { dot: 'bg-rose-500',    label: 'text-rose-600' },
+};
+
+interface OutcomeListProps {
+  title: string;
+  accent: OutcomeAccent;
+  items: string[];
+  withDivider: boolean;
+}
+
+const OutcomeList: React.FC<OutcomeListProps> = ({
+  title,
+  accent,
+  items,
+  withDivider,
+}) => {
+  const style = ACCENT_STYLES[accent];
+  return (
+    <div className={withDivider ? 'border-b border-slate-100' : ''}>
+      <header className="px-5 py-3 flex items-center gap-2">
+        <span className={`w-1.5 h-1.5 rounded-full ${style.dot}`} aria-hidden />
+        <h3 className={`text-[11px] font-semibold uppercase tracking-wider ${style.label}`}>
+          {title}
+        </h3>
+        <span className="text-[11px] font-semibold text-slate-400 tabular-nums">
+          {items.length}
+        </span>
+      </header>
+      <ul className="px-5 pb-3 space-y-1.5">
+        {items.map((item, i) => (
+          <li
+            key={i}
+            className="text-sm text-slate-700 leading-snug pl-3 border-l-2 border-slate-100"
+          >
+            {item}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+};
+
+// ============================================================
 // Calendar popover
 // ============================================================
 
@@ -439,6 +649,7 @@ interface CalendarPanelProps {
   setMonth: (m: { year: number; month: number }) => void;
   selectedIso: string;
   usedDates: Set<string>;
+  savedDates: Set<string>;
   onSelect: (iso: string) => void;
 }
 
@@ -449,6 +660,7 @@ const CalendarPanel: React.FC<CalendarPanelProps> = ({
   setMonth,
   selectedIso,
   usedDates,
+  savedDates,
   onSelect,
 }) => {
   const cells = useMemo(
@@ -522,6 +734,20 @@ const CalendarPanel: React.FC<CalendarPanelProps> = ({
           if (cell.isToday && !isSelected) {
             classes += ' ring-1 ring-blue-400';
           }
+          // Dot color signals narrative layer presence:
+          //   - blue-500: day has a saved report (user wrote it up)
+          //   - slate-400: day has runs but no saved report yet
+          // Selected day flips to white either way so it's visible
+          // against the dark selection background.
+          const isSaved = savedDates.has(cell.iso);
+          let dotClass: string;
+          if (isSelected) {
+            dotClass = 'bg-white';
+          } else if (isSaved) {
+            dotClass = 'bg-blue-500';
+          } else {
+            dotClass = 'bg-slate-400';
+          }
           return (
             <button
               key={cell.iso}
@@ -535,7 +761,7 @@ const CalendarPanel: React.FC<CalendarPanelProps> = ({
               <span>{cell.day}</span>
               {isUsed && (
                 <span
-                  className={`absolute bottom-1 w-1 h-1 rounded-full ${isSelected ? 'bg-white' : 'bg-blue-500'}`}
+                  className={`absolute bottom-1 w-1 h-1 rounded-full ${dotClass}`}
                   aria-hidden
                 />
               )}
@@ -546,6 +772,10 @@ const CalendarPanel: React.FC<CalendarPanelProps> = ({
       <div className="flex items-center gap-3 mt-3 pt-3 border-t border-slate-200 text-[11px] text-slate-400">
         <span className="flex items-center gap-1.5">
           <span className="w-1 h-1 rounded-full bg-blue-500" />
+          Saved
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="w-1 h-1 rounded-full bg-slate-400" />
           Tracked
         </span>
         <span className="flex items-center gap-1.5">

@@ -28,6 +28,11 @@ import {
 } from '../lib/previewNav';
 import type { SummaryInput } from '../lib/summaryModel';
 import {
+  loadSavedSummaries,
+  saveSavedSummaries,
+  keyForSummary,
+} from '../lib/savedSummaries';
+import {
   loadCatalog,
   saveCatalog,
   loadPanels,
@@ -473,6 +478,33 @@ export const TaskPanelsApp: React.FC<TaskPanelsAppProps> = ({ authUser }) => {
   // ---- Summary snapshot ----
   const [currentSummary, setCurrentSummary] = useState<SummaryInput | null>(null);
 
+  // ---- Saved summaries archive ----
+  // Per-date archive of daily reports the user has generated.
+  // Keyed by local ISO date so re-generating the same day
+  // overwrites in place. Persisted to localStorage so yesterday's
+  // report survives a refresh.
+  const [savedSummaries, setSavedSummaries] = useState<Record<string, SummaryInput>>(
+    () => loadSavedSummaries(),
+  );
+  useEffect(() => {
+    saveSavedSummaries(savedSummaries);
+  }, [savedSummaries]);
+  const saveSummary = useCallback((input: SummaryInput) => {
+    // Non-daily kinds (performance / weekly / etc.) don't fit the
+    // per-day archive — skip them until we have a range-based view.
+    if (input.reportKind !== 'daily') return;
+    const key = keyForSummary(input);
+    setSavedSummaries(prev => ({ ...prev, [key]: input }));
+  }, []);
+  const deleteSavedSummary = useCallback((iso: string) => {
+    setSavedSummaries(prev => {
+      if (!(iso in prev)) return prev;
+      const next = { ...prev };
+      delete next[iso];
+      return next;
+    });
+  }, []);
+
   // ---- Navigation ----
   const navigate = useCallback((next: PreviewScreen, opts?: NavigateOptions) => {
     if (opts && typeof opts.panelId === 'string') {
@@ -536,6 +568,9 @@ export const TaskPanelsApp: React.FC<TaskPanelsAppProps> = ({ authUser }) => {
     updateProfile,
     currentSummary,
     setCurrentSummary,
+    savedSummaries,
+    saveSummary,
+    deleteSavedSummary,
   };
 
   // Onboarding — fullscreen, no sidebar/nav, no NavProvider needed

@@ -425,6 +425,7 @@ export const PrepareSummaryScreen: React.FC = () => {
     breakAccum,
     activeBreak,
     setCurrentSummary,
+    saveSummary,
     runs,
   } = useNav();
   // Live Panel instances from the day (both still-running and marked done
@@ -715,6 +716,12 @@ export const PrepareSummaryScreen: React.FC = () => {
     });
 
     setCurrentSummary(input);
+    // Persist daily reports into the per-date archive so the user
+    // can revisit the narrative, outcomes, blockers, and follow-ups
+    // from SummaryArchive long after this session ends. saveSummary
+    // is a no-op for non-daily kinds, so calling it unconditionally
+    // is safe here.
+    saveSummary(input);
     navigate(reportType === 'performance' ? 'performance-review' : 'daily-summary');
   };
 

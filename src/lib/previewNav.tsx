@@ -115,6 +115,17 @@ type NavContextValue = {
   // ---- Generated summary snapshot ----
   currentSummary: SummaryInput | null;
   setCurrentSummary: (input: SummaryInput | null) => void;
+
+  // ---- Saved summaries archive ----
+  /** Map of local ISO date ("YYYY-MM-DD") → the SummaryInput the
+   *  user generated for that day. Re-generating overwrites. */
+  savedSummaries: Record<string, SummaryInput>;
+  /** Persist a SummaryInput into the archive. Daily reports land
+   *  under their report-window start date; non-daily kinds are
+   *  currently ignored (the archive is per-day for now). */
+  saveSummary: (input: SummaryInput) => void;
+  /** Drop a saved summary by ISO date key. */
+  deleteSavedSummary: (iso: string) => void;
 };
 
 const NavContext = createContext<NavContextValue | null>(null);
@@ -174,6 +185,9 @@ export const useNav = (): NavContextValue => {
       updateProfile: noop,
       currentSummary: null,
       setCurrentSummary: noop,
+      savedSummaries: {},
+      saveSummary: noop,
+      deleteSavedSummary: noop,
     };
   }
   return ctx;
