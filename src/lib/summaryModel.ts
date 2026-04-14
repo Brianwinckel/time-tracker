@@ -363,6 +363,42 @@ export const DEFAULT_OVERTIME_THRESHOLD_MS = 8 * 60 * 60 * 1000;
 export function buildSummaryInput(args: BuildInputArgs): SummaryInput {
   const catalogById = new Map(args.panelCatalog.map(p => [p.id, p]));
 
+  // ---- Clip runs to the report window FIRST ----
+  // The timeline and the per-panel totals both read from these same
+  // clipped runs, so they can never disagree with each other.
+  const windowStart = args.dateRange.start.getTime();
+  const windowEnd = args.dateRange.end.getTime();
+  const filteredRuns: RunSegment[] = (args.runs ?? [])
+    .filter(r => r.endedAt > windowStart && r.startedAt < windowEnd)
+    .map(r => ({
+      panelId: r.panelId,
+      startedAt: Math.max(r.startedAt, windowStart),
+      endedAt: Math.min(r.endedAt, windowEnd),
+    }))
+    .sort((a, b) => a.startedAt - b.startedAt);
+
+  // ---- Build a fresh per-panel accumulator from the filtered runs ----
+  // We deliberately do NOT use `args.panelAccum` as the source of truth:
+  //   1. Stale active-timer problem — TaskPanelsApp memoizes panelAccum
+  //      against [runs, activeTimer]. When a timer starts, the memo body
+  //      evaluates `Date.now() - activeTimer.startedAt ≈ 0` and caches
+  //      that number. It does NOT refresh on its own, so the currently
+  //      running panel's contribution sits at ~0 until the timer is
+  //      banked. Callers like PrepareSummaryScreen already splice a
+  //      synthetic active run into `args.runs`, so walking those runs
+  //      gives us fresh data.
+  //   2. Unclipped — panelAccum sums every run ever, regardless of
+  //      date. Re-deriving from filteredRuns respects the report window
+  //      automatically, so a daily report never counts yesterday's
+  //      minutes.
+  // If the caller didn't pass any runs (unusual, but possible), fall
+  // back to panelAccum so we at least have something to show.
+  const hasRuns = (args.runs ?? []).length > 0;
+  const accumFromRuns: Record<string, number> = {};
+  for (const r of filteredRuns) {
+    accumFromRuns[r.panelId] = (accumFromRuns[r.panelId] ?? 0) + (r.endedAt - r.startedAt);
+  }
+
   const workstreams: WorkstreamEntry[] = args.activePanelIds
     .map(id => {
       const meta = catalogById.get(id);
@@ -375,7 +411,9 @@ export function buildSummaryInput(args: BuildInputArgs): SummaryInput {
         blocker: '',
         unrealizedEffort: null,
       };
-      const trackedMs = args.panelAccum[id] ?? 0;
+      const trackedMs = hasRuns
+        ? (accumFromRuns[id] ?? 0)
+        : (args.panelAccum[id] ?? 0);
       const isMeeting = draft.workType === 'Meeting';
       const entry: WorkstreamEntry = {
         panelId: id,
@@ -406,19 +444,6 @@ export function buildSummaryInput(args: BuildInputArgs): SummaryInput {
     .reduce((sum, w) => sum + w.trackedMs, 0);
   const focusMs = totalTrackedMs - meetingMs;
   const breakMs = args.breakAccum.break + args.breakAccum.lunch;
-
-  // Clip runs to the report window so the timeline only shows the day
-  // we're reporting on, even if the caller passes the full app history.
-  const windowStart = args.dateRange.start.getTime();
-  const windowEnd = args.dateRange.end.getTime();
-  const filteredRuns: RunSegment[] = (args.runs ?? [])
-    .filter(r => r.endedAt > windowStart && r.startedAt < windowEnd)
-    .map(r => ({
-      panelId: r.panelId,
-      startedAt: Math.max(r.startedAt, windowStart),
-      endedAt: Math.min(r.endedAt, windowEnd),
-    }))
-    .sort((a, b) => a.startedAt - b.startedAt);
 
   const taskpanels: TaskPanelsSource = {
     kind: 'taskpanels',
