@@ -84,6 +84,33 @@ export const ProfileScreen: React.FC = () => {
     navigate('onboarding');
   };
 
+  // Hard cache purge + reload. The offline-first service worker caches
+  // the app shell, which means iOS standalone PWAs can keep showing a
+  // stale bundle after a deploy until the user force-quits the window.
+  // This button is the user-visible escape hatch: unregister every SW,
+  // nuke every Cache Storage entry, then reload against the network.
+  // Tracked time, projects, catalog, and profile live in localStorage
+  // and are NOT touched — we're only flushing the network shell cache.
+  const handleRefreshApp = async () => {
+    const ok = window.confirm(
+      'Refresh app? This clears the offline cache and reloads to pull the latest version. Your tracked time, projects, and profile details are safe.',
+    );
+    if (!ok) return;
+    try {
+      if ('serviceWorker' in navigator) {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(registrations.map(r => r.unregister()));
+      }
+      if ('caches' in window) {
+        const keys = await caches.keys();
+        await Promise.all(keys.map(k => caches.delete(k)));
+      }
+    } catch {
+      /* best effort — reload anyway so at least the page re-fetches */
+    }
+    window.location.reload();
+  };
+
   // Simulated Google sign-in. In production this kicks off OAuth and we
   // pull `name`, `email`, and `picture` from the ID token. Here we drop in
   // a deterministic mock photo so the avatar fallback chain is exercisable.
@@ -381,6 +408,34 @@ export const ProfileScreen: React.FC = () => {
             <svg className="w-4 h-4 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
               <path d="M1 4v6h6" />
               <path d="M3.51 15a9 9 0 102.13-9.36L1 10" />
+            </svg>
+          </button>
+        </section>
+
+        {/* ===== Refresh App =====
+             The offline service worker aggressively caches the app
+             shell, which means deploys can take a while to surface on
+             iOS standalone PWAs. This is the user-visible escape hatch:
+             unregister the SW, flush Cache Storage, and reload against
+             the network. Sits above Sign Out because both are "reach
+             for this when something feels off" account-level actions. */}
+        <section className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+          <button
+            type="button"
+            onClick={handleRefreshApp}
+            className="w-full px-5 py-4 flex items-center justify-between text-left hover:bg-slate-50"
+          >
+            <div>
+              <p className="text-sm font-semibold text-slate-900">Refresh App</p>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Clear the offline cache and reload to pull the latest version.
+              </p>
+            </div>
+            <svg className="w-4 h-4 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+              <path d="M23 4v6h-6" />
+              <path d="M1 20v-6h6" />
+              <path d="M3.51 9a9 9 0 0114.85-3.36L23 10" />
+              <path d="M20.49 15A9 9 0 015.64 18.36L1 14" />
             </svg>
           </button>
         </section>

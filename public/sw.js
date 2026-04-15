@@ -1,8 +1,13 @@
 // ============================================================
 // Service Worker — offline shell + push notifications
+// ------------------------------------------------------------
+// Bump CACHE_NAME every time we ship a meaningful UX change. The
+// change triggers the `activate` handler below, which deletes the
+// old cache; combined with the client-side `controllerchange`
+// listener in index.html, the next page load will be clean.
 // ============================================================
 
-const CACHE_NAME = 'timetracker-v2';
+const CACHE_NAME = 'timetracker-v3';
 const SHELL_URLS = [
   '/',
   '/index.html',
@@ -46,6 +51,20 @@ self.addEventListener('fetch', (event) => {
       })
       .catch(() => caches.match(event.request))
   );
+});
+
+// ---- Client → SW messages ----
+//
+// When a new service worker installs, it sits in the "waiting" state
+// until the old one is freed. `SKIP_WAITING` tells the new SW to take
+// over immediately, after which the page's `controllerchange` listener
+// reloads the tab with the fresh bundle. This is the plumbing behind
+// the Settings → "Refresh app" button and the auto-update flow in
+// index.html.
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
 });
 
 // ---- Push Notifications ----
