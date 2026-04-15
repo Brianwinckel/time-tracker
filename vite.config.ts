@@ -1,10 +1,19 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import tailwindcss from '@tailwindcss/vite'
 import path from 'path'
 
 // root is set explicitly so the dev server works whether launched
 // from this directory or from a parent (e.g. via launch.json).
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), tailwindcss()],
   root: path.resolve(__dirname),
+  build: {
+    rollupOptions: {
+      input: {
+        main: path.resolve(__dirname, 'index.html'),
+        preview: path.resolve(__dirname, 'preview.html'),
+      },
+    },
+  },
 })

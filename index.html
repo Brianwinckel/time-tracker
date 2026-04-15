@@ -6,6 +6,7 @@
     <link rel="apple-touch-icon" href="/icon-192.png" />
     <link rel="manifest" href="/manifest.json" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
     <meta name="theme-color" content="#2B5797" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
@@ -16,9 +17,75 @@
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
     <script>
+      // Service worker bootstrap with auto-update.
+      //
+      // Why each piece matters — this is the difference between "my fix
+      // shipped but users still see the old bundle" and "everyone gets
+      // the new build on their next app launch":
+      //
+      //  1. updateViaCache: 'none'        → forces the browser to re-check
+      //     sw.js itself on every registration (ignore HTTP caching). Without
+      //     this, some browsers serve a cached sw.js for up to 24h.
+      //
+      //  2. visibilitychange → update()   → iOS standalone PWAs barely ever
+      //     trigger a real navigation (the app resumes from background),
+      //     so we explicitly poll for updates whenever the user brings
+      //     the app back to the foreground.
+      //
+      //  3. controllerchange → reload     → when the new SW takes over,
+      //     silently reload ONCE so the page is running against the new
+      //     bundle. The `reloadGuard` flag prevents a reload loop.
+      //
+      //  4. updatefound → SKIP_WAITING    → tells a freshly-installed SW
+      //     to take over immediately, without waiting for all tabs to
+      //     close. Combined with (3) this is seamless auto-update.
       if ('serviceWorker' in navigator) {
+        let reloadGuard = false;
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          if (reloadGuard) return;
+          reloadGuard = true;
+          window.location.reload();
+        });
+
         window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js');
+          navigator.serviceWorker
+            .register('/sw.js', { updateViaCache: 'none' })
+            .then((registration) => {
+              // A waiting worker is already installed (left over from a
+              // previous visit) — wake it up now so the controllerchange
+              // handler above reloads the page onto the new bundle.
+              if (registration.waiting) {
+                registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+              }
+
+              // When a new worker starts installing, wait for it to
+              // reach 'installed' and then ask it to skipWaiting.
+              registration.addEventListener('updatefound', () => {
+                const installing = registration.installing;
+                if (!installing) return;
+                installing.addEventListener('statechange', () => {
+                  if (
+                    installing.state === 'installed' &&
+                    navigator.serviceWorker.controller
+                  ) {
+                    installing.postMessage({ type: 'SKIP_WAITING' });
+                  }
+                });
+              });
+
+              // Check for updates whenever the PWA comes back to the
+              // foreground (iOS standalone rarely fires real navigations).
+              document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState === 'visible') {
+                  registration.update().catch(() => {
+                    /* offline or transient — ignore */
+                  });
+                }
+              });
+            })
+            .catch(() => {
+              /* registration failure — app still works, no offline shell */
+            });
         });
       }
     </script>

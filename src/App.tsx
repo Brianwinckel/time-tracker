@@ -1,58 +1,63 @@
-import React, { useEffect } from 'react';
+// ============================================================
+// App — auth gate + the new V6 TaskPanelsApp.
+//
+// The legacy AppProvider / AppShell / Dashboard / Settings etc.
+// are intentionally no longer mounted here. All state and
+// routing lives inside <TaskPanelsApp />, backed by localStorage.
+// This file also bridges Supabase's authenticated user into
+// TaskPanelsApp's profile state so the identity card picks up
+// name + email + Google avatar on first sign-in.
+// ============================================================
+
+import React, { useMemo } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import { AppProvider, useApp } from './context/AppContext';
-import { EntitlementsProvider } from './billing/entitlements';
-import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
-import { useIdleWarning } from './hooks/useIdleWarning';
-import { useTimedTaskReminder } from './hooks/useTimedTaskReminder';
-import { Header } from './components/Header';
-import { Dashboard } from './components/Dashboard';
-import { DailySummary } from './components/DailySummary';
-import { Settings } from './components/Settings';
-import { BackdateBuilder } from './components/BackdateBuilder';
 import { AuthScreen } from './components/AuthScreen';
-import { TeamSelector } from './components/TeamSelector';
-import { ManagerDashboard } from './components/ManagerDashboard';
-import { AdminPanel } from './components/admin/AdminPanel';
-import { FeedbackFab } from './components/FeedbackFab';
+import { TaskPanelsApp, type TaskPanelsAuthUser } from './components/TaskPanelsApp';
+import { TaskPanelsLogo } from './components/TaskPanelsLogo';
+import type { AuthProvider as ProfileAuthProvider } from './lib/profile';
 
-// Inner content — only rendered when authenticated + has team
-const AppContent: React.FC = () => {
-  const { state } = useApp();
-  useKeyboardShortcuts();
-  useIdleWarning();
-  useTimedTaskReminder();
-
-  useEffect(() => {
-    document.documentElement.setAttribute(
-      'data-theme',
-      state.settings.darkMode ? 'dark' : 'light'
-    );
-  }, [state.settings.darkMode]);
-
-  return (
-    <div className="app">
-      <Header />
-      <main className="main">
-        {state.view === 'dashboard' && <Dashboard />}
-        {state.view === 'summary' && <DailySummary />}
-        {state.view === 'manager' && <ManagerDashboard />}
-        {state.view === 'admin' && <AdminPanel />}
-        {state.view === 'history' && <BackdateBuilder />}
-        {state.view === 'settings' && <Settings />}
-      </main>
-      <FeedbackFab />
-    </div>
-  );
-};
-
-// Auth gate — checks login state and team assignment
+// Auth gate — only checks login state. A user doesn't need a team_id
+// to use TaskPanels — this is a personal time tracker first.
 const AuthGate: React.FC = () => {
-  const { user, profile, loading } = useAuth();
+  const { user, loading } = useAuth();
 
-  // Still checking auth state
+  // Pull identity out of Supabase's user into the shape TaskPanelsApp
+  // expects. Google OAuth surfaces full_name + avatar_url under
+  // user_metadata; email-OTP users only have user.email. user_metadata
+  // keys vary slightly by provider, so we fall back through the common
+  // variants (full_name → name, avatar_url → picture).
+  const authUser = useMemo<TaskPanelsAuthUser | null>(() => {
+    if (!user) return null;
+    const md = (user.user_metadata ?? {}) as Record<string, unknown>;
+    const appMd = (user.app_metadata ?? {}) as Record<string, unknown>;
+    const pickString = (...keys: string[]): string | null => {
+      for (const k of keys) {
+        const v = md[k];
+        if (typeof v === 'string' && v.trim()) return v;
+      }
+      return null;
+    };
+    const provider: ProfileAuthProvider =
+      appMd.provider === 'google' ? 'google' : user ? 'email' : 'none';
+    return {
+      name: pickString('full_name', 'name'),
+      email: user.email ?? pickString('email'),
+      avatarUrl: pickString('avatar_url', 'picture'),
+      provider,
+    };
+  }, [user]);
+
+  // Still checking auth state — show the breathing brand mark instead
+  // of a "Loading..." text blob.
   if (loading) {
-    return <div className="loading-screen">Loading...</div>;
+    return (
+      <div className="flex flex-col items-center justify-center h-[100dvh] bg-white gap-4">
+        <TaskPanelsLogo size={72} animated />
+        <span className="text-xs font-medium tracking-wide text-slate-400 uppercase">
+          TaskPanels
+        </span>
+      </div>
+    );
   }
 
   // Not logged in — show login screen
@@ -60,19 +65,9 @@ const AuthGate: React.FC = () => {
     return <AuthScreen />;
   }
 
-  // Logged in but no team yet — show team selector
-  if (profile && !profile.team_id) {
-    return <TeamSelector />;
-  }
-
-  // Fully authenticated + has team — show the app
-  return (
-    <EntitlementsProvider>
-      <AppProvider>
-        <AppContent />
-      </AppProvider>
-    </EntitlementsProvider>
-  );
+  // Fully authenticated — show the app, seeded with the Google/email
+  // identity so the profile card + sidebar avatar pick it up.
+  return <TaskPanelsApp authUser={authUser} />;
 };
 
 function App() {

@@ -100,7 +100,7 @@ export interface AppState {
   currentDate: string;       // YYYY-MM-DD
   dailyNote: string;
   settings: Settings;
-  view: 'dashboard' | 'summary' | 'settings' | 'history' | 'manager' | 'admin';
+  view: 'dashboard' | 'summary' | 'prepare-summary' | 'review' | 'settings' | 'history' | 'manager' | 'admin';
   loading: boolean;        // true while initial data is loading from Supabase
 }
 
