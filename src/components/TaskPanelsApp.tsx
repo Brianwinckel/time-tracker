@@ -69,6 +69,11 @@ import {
   clampBreakMs,
   type BreakDurationsMs,
 } from '../lib/breakDefaults';
+import {
+  loadPreferences,
+  savePreferences,
+  type AppPreferences,
+} from '../lib/preferences';
 
 /** Minimal identity shape the shell cares about. App.tsx pulls this
  *  from Supabase's `user` object; preview.tsx leaves it undefined. */
@@ -108,6 +113,8 @@ const VALID_SCREENS: PreviewScreen[] = [
   'settings-panels',
   'settings-advanced-labels',
   'settings-breaks',
+  'settings-appearance',
+  'settings-day-view',
 ];
 
 /** Determine initial screen: if no onboarding result exists and no explicit
@@ -281,6 +288,17 @@ export const TaskPanelsApp: React.FC<TaskPanelsAppProps> = ({ authUser }) => {
 
   const setBreakDurationMs = useCallback((kind: BreakKind, ms: number) => {
     setBreakDurationsMsState(prev => ({ ...prev, [kind]: clampBreakMs(ms) }));
+  }, []);
+
+  // ---- App Preferences (time format, default Home tab, …) ----
+  const [preferences, setPreferencesState] =
+    useState<AppPreferences>(() => loadPreferences());
+  useEffect(() => {
+    savePreferences(preferences);
+  }, [preferences]);
+
+  const setPreference = useCallback(<K extends keyof AppPreferences>(key: K, value: AppPreferences[K]) => {
+    setPreferencesState(prev => ({ ...prev, [key]: value }));
   }, []);
 
   // ---- Timer actions ----
@@ -637,6 +655,8 @@ export const TaskPanelsApp: React.FC<TaskPanelsAppProps> = ({ authUser }) => {
     savedSummaries,
     saveSummary,
     deleteSavedSummary,
+    preferences,
+    setPreference,
   };
 
   // Onboarding — fullscreen, no sidebar/nav, no NavProvider needed

@@ -124,8 +124,8 @@ const buildSections = (handlers: SectionHandlers): SectionDef[] => [
       </svg>
     ),
     items: [
-      { label: 'Appearance', soon: true },
-      { label: 'Default Day View', soon: true },
+      { label: 'Appearance', screen: 'settings-appearance' },
+      { label: 'Default Day View', screen: 'settings-day-view' },
       { label: 'Break & Lunch Defaults', screen: 'settings-breaks' },
     ],
   },
@@ -1083,6 +1083,171 @@ const SettingsAdvancedLabels: React.FC = () => (
 );
 
 // ============================================================
+// Appearance — Preferences sub-screen
+// ============================================================
+
+const SettingsAppearance: React.FC = () => {
+  const { preferences, setPreference } = useNav();
+  return (
+    <SettingsShell title="Appearance" crumb={{ label: 'Preferences', screen: 'settings' }}>
+      <p className="text-sm text-slate-500 mb-6">
+        Visual settings that affect how times and data are displayed throughout the app.
+      </p>
+
+      {/* Time Format */}
+      <section className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+        <header className="px-5 py-4 border-b border-slate-100">
+          <h2 className="text-sm font-bold text-slate-900">Time Format</h2>
+          <p className="text-xs text-slate-500 mt-0.5">
+            How clock times are shown — session start/end, timeline entries, etc.
+          </p>
+        </header>
+        <div className="px-5 py-4 flex gap-3">
+          {([
+            { id: '12h' as const, label: '12-hour', example: '2:30 PM' },
+            { id: '24h' as const, label: '24-hour', example: '14:30' },
+          ]).map(opt => {
+            const selected = preferences.timeFormat === opt.id;
+            return (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => setPreference('timeFormat', opt.id)}
+                className={`flex-1 px-4 py-3 rounded-xl border text-left transition-colors ${
+                  selected
+                    ? 'border-blue-400 bg-blue-50 ring-2 ring-blue-500/20'
+                    : 'border-slate-200 bg-white hover:bg-slate-50'
+                }`}
+              >
+                <p className={`text-sm font-semibold ${selected ? 'text-blue-700' : 'text-slate-700'}`}>
+                  {opt.label}
+                </p>
+                <p className={`text-xs mt-0.5 tabular-nums ${selected ? 'text-blue-500' : 'text-slate-400'}`}>
+                  {opt.example}
+                </p>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* Dark Mode — placeholder */}
+      <section className="bg-white rounded-2xl border border-slate-200 overflow-hidden mt-4">
+        <div className="px-5 py-4 flex items-center justify-between">
+          <div>
+            <p className="text-sm font-semibold text-slate-900">Dark Mode</p>
+            <p className="text-xs text-slate-500 mt-0.5">
+              A full dark theme for low-light environments.
+            </p>
+          </div>
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 shrink-0 ml-3">
+            Coming soon
+          </span>
+        </div>
+      </section>
+    </SettingsShell>
+  );
+};
+
+// ============================================================
+// Default Day View — Preferences sub-screen
+// ============================================================
+
+const SettingsDefaultView: React.FC = () => {
+  const { preferences, setPreference } = useNav();
+  return (
+    <SettingsShell title="Default Day View" crumb={{ label: 'Preferences', screen: 'settings' }}>
+      <p className="text-sm text-slate-500 mb-6">
+        Which tab the Home screen opens to when you launch the app or navigate back from another screen.
+      </p>
+      <section className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+        {([
+          {
+            id: 'today' as const,
+            label: 'Today',
+            description: 'Your active panels and running timer.',
+            icon: (
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                <line x1="16" y1="2" x2="16" y2="6" />
+                <line x1="8" y1="2" x2="8" y2="6" />
+                <line x1="3" y1="10" x2="21" y2="10" />
+              </svg>
+            ),
+          },
+          {
+            id: 'week' as const,
+            label: 'This Week',
+            description: 'Weekly summary of your tracked sessions.',
+            icon: (
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+              </svg>
+            ),
+            soon: true,
+          },
+          {
+            id: 'archive' as const,
+            label: 'Archive',
+            description: 'Historical reports and saved summaries.',
+            icon: (
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="21 8 21 21 3 21 3 8" />
+                <rect x="1" y="3" width="22" height="5" />
+                <line x1="10" y1="12" x2="14" y2="12" />
+              </svg>
+            ),
+            soon: true,
+          },
+        ]).map((opt, i, arr) => {
+          const selected = preferences.defaultHomeTab === opt.id;
+          return (
+            <button
+              key={opt.id}
+              type="button"
+              onClick={() => setPreference('defaultHomeTab', opt.id)}
+              className={`w-full px-5 py-4 flex items-center gap-4 text-left hover:bg-slate-50 ${
+                i < arr.length - 1 ? 'border-b border-slate-100' : ''
+              }`}
+            >
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                selected ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-500'
+              }`}>
+                {opt.icon}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className={`text-sm font-semibold ${selected ? 'text-blue-700' : 'text-slate-900'}`}>
+                  {opt.label}
+                  {opt.soon && (
+                    <span className="ml-2 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                      View coming soon
+                    </span>
+                  )}
+                </p>
+                <p className="text-xs text-slate-500 truncate mt-0.5">{opt.description}</p>
+              </div>
+              <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                selected ? 'border-blue-500 bg-blue-500' : 'border-slate-300 bg-white'
+              }`}>
+                {selected && (
+                  <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                )}
+              </div>
+            </button>
+          );
+        })}
+      </section>
+      <p className="mt-4 text-[11px] text-slate-400">
+        "This Week" and "Archive" views are being built — selecting them stores your preference
+        so the tab switches automatically once the views ship.
+      </p>
+    </SettingsShell>
+  );
+};
+
+// ============================================================
 // Break & Lunch Defaults — Preferences sub-screen
 // ------------------------------------------------------------
 // Lets the user pick the default countdown length for Break and
@@ -1226,6 +1391,10 @@ export const SettingsScreen: React.FC = () => {
       return <SettingsAdvancedLabels />;
     case 'settings-breaks':
       return <SettingsBreakDefaults />;
+    case 'settings-appearance':
+      return <SettingsAppearance />;
+    case 'settings-day-view':
+      return <SettingsDefaultView />;
     case 'settings':
     default:
       return <SettingsHome />;

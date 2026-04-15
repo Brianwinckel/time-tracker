@@ -11,6 +11,8 @@ import type { Project } from './projects';
 import { DEFAULT_PROJECTS } from './projects';
 import type { UserProfile } from './profile';
 import { DEFAULT_PROFILE } from './profile';
+import type { AppPreferences } from './preferences';
+import { DEFAULT_PREFERENCES } from './preferences';
 
 export type PreviewScreen =
   | 'onboarding'
@@ -27,7 +29,9 @@ export type PreviewScreen =
   | 'settings-projects'
   | 'settings-panels'
   | 'settings-advanced-labels'
-  | 'settings-breaks';
+  | 'settings-breaks'
+  | 'settings-appearance'
+  | 'settings-day-view';
 
 export type NavigateOptions = {
   panelId?: string;
@@ -141,6 +145,11 @@ type NavContextValue = {
   saveSummary: (input: SummaryInput) => void;
   /** Drop a saved summary by ISO date key. */
   deleteSavedSummary: (iso: string) => void;
+
+  // ---- App Preferences (time format, default Home tab, etc.) ----
+  preferences: AppPreferences;
+  /** Update a single preference key. Persists immediately. */
+  setPreference: <K extends keyof AppPreferences>(key: K, value: AppPreferences[K]) => void;
 };
 
 const NavContext = createContext<NavContextValue | null>(null);
@@ -219,6 +228,8 @@ export const useNav = (): NavContextValue => {
       savedSummaries: {},
       saveSummary: noop,
       deleteSavedSummary: noop,
+      preferences: DEFAULT_PREFERENCES,
+      setPreference: noop,
     };
   }
   return ctx;

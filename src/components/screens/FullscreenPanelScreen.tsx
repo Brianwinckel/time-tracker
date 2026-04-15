@@ -282,6 +282,7 @@ export function FullscreenPanelScreen() {
     setPanelElapsed,
     updatePanel,
     projects,
+    preferences,
   } = useNav();
   const goHome = () => navigate('home');
 
@@ -456,11 +457,14 @@ export function FullscreenPanelScreen() {
 
   const formatClock = (ts: number) => {
     const d = new Date(ts);
-    let h = d.getHours();
+    const h24 = d.getHours();
     const m = d.getMinutes();
-    const ampm = h >= 12 ? 'PM' : 'AM';
-    h = h % 12 || 12;
-    return `${h}:${pad2(m)} ${ampm}`;
+    if (preferences.timeFormat === '24h') {
+      return `${pad2(h24)}:${pad2(m)}`;
+    }
+    const ampm = h24 >= 12 ? 'PM' : 'AM';
+    const h12 = h24 % 12 || 12;
+    return `${h12}:${pad2(m)} ${ampm}`;
   };
 
   const timerDisplay = formatHMS(elapsedMs);

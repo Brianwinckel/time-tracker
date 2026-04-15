@@ -34,7 +34,6 @@ const Logo: React.FC = () => (
 // ---- Main Component ----
 
 export const HomeScreen: React.FC = () => {
-  const [activeTab] = useState<'today' | 'week' | 'archive'>('today');
   const {
     navigate,
     panels: allPanels,
@@ -46,7 +45,9 @@ export const HomeScreen: React.FC = () => {
     breakAccum,
     endMyDay,
     userProfile,
+    preferences,
   } = useNav();
+  const [activeTab, setActiveTab] = useState<'today' | 'week' | 'archive'>(preferences.defaultHomeTab);
 
   // Tick every second whenever anything on this screen is counting — a
   // running panel timer, or a break/lunch countdown.
@@ -255,11 +256,16 @@ export const HomeScreen: React.FC = () => {
 
         {/* Tab Bar */}
         <div className="bg-white border-b border-slate-100 px-8 flex items-center gap-1 shrink-0">
-          <button className={`px-4 py-3 text-sm font-semibold border-b-2 ${activeTab === 'today' ? 'text-slate-900 border-slate-900' : 'text-slate-400 border-transparent hover:text-slate-600'}`}>
-            Today
-          </button>
-          <button className="px-4 py-3 text-sm font-medium text-slate-400 border-b-2 border-transparent hover:text-slate-600">This Week</button>
-          <button className="px-4 py-3 text-sm font-medium text-slate-400 border-b-2 border-transparent hover:text-slate-600">Archive</button>
+          {([['today', 'Today'], ['week', 'This Week'], ['archive', 'Archive']] as const).map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setActiveTab(id)}
+              className={`px-4 py-3 text-sm font-semibold border-b-2 ${activeTab === id ? 'text-slate-900 border-slate-900' : 'text-slate-400 border-transparent hover:text-slate-600'}`}
+            >
+              {label}
+            </button>
+          ))}
         </div>
 
         {/* Scrollable: Panel List + Right Sidebar */}
@@ -448,11 +454,16 @@ export const HomeScreen: React.FC = () => {
 
           {/* Tab Bar — inside header so it sticks too */}
           <div className="flex items-center gap-1 -mb-px">
-            <button className={`px-4 py-2.5 text-sm font-semibold border-b-2 ${activeTab === 'today' ? 'text-slate-900 border-slate-900' : 'text-slate-400 border-transparent'}`}>
-              Today
-            </button>
-            <button className="px-4 py-2.5 text-sm font-medium text-slate-400">This Week</button>
-            <button className="px-4 py-2.5 text-sm font-medium text-slate-400">Archive</button>
+            {([['today', 'Today'], ['week', 'This Week'], ['archive', 'Archive']] as const).map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setActiveTab(id)}
+                className={`px-4 py-2.5 text-sm font-semibold border-b-2 ${activeTab === id ? 'text-slate-900 border-slate-900' : 'text-slate-400 border-transparent'}`}
+              >
+                {label}
+              </button>
+            ))}
           </div>
         </header>
 
