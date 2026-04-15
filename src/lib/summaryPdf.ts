@@ -28,7 +28,7 @@
 // ============================================================
 
 import type { jsPDF } from 'jspdf';
-import type { DailySummaryData, KPI, LegendEntry, TimelineEntry } from './summaryModel';
+import type { DailySummaryData, KPI, LegendEntry, PerformanceReviewData, ProjectBreakdown, TimelineEntry } from './summaryModel';
 import { stripMarkdownBold } from './summaryExport';
 
 // ---- Page geometry ----
@@ -140,7 +140,7 @@ export async function generateDailySummaryPdf(
 
   // Walk every page and stamp the footer bar. Doing this at the
   // very end means we know the final page count for "Page N of M".
-  stampFootersOnEveryPage(doc, data);
+  stampFootersOnEveryPage(doc);
 
   return doc.output('blob');
 }
@@ -214,7 +214,7 @@ function drawTitleBlock(
 /** Footer run on every page: generated-at timestamp on the left,
  *  "Page N of M · TaskPanels" on the right. Called once after all
  *  content is drawn so we know the final page count. */
-function stampFootersOnEveryPage(doc: jsPDF, _data: DailySummaryData): void {
+function stampFootersOnEveryPage(doc: jsPDF): void {
   const total = doc.getNumberOfPages();
   const stamp = new Date().toLocaleString(undefined, {
     month: 'short',
@@ -635,4 +635,244 @@ export function filenameForSummary(dateLabel: string): string {
     return `taskpanels-daily-${iso}.pdf`;
   }
   return `taskpanels-daily-${Date.now()}.pdf`;
+}
+
+// ============================================================
+// Performance Review PDF
+// ============================================================
+
+/** Generate the Performance Review PDF and return it as a Blob. */
+export async function generatePerformanceReviewPdf(
+  data: PerformanceReviewData,
+): Promise<Blob> {
+  const { jsPDF: JsPDF } = await import('jspdf');
+  const doc = new JsPDF({ unit: 'pt', format: 'letter' });
+
+  let y = MARGIN_TOP;
+
+  y = drawHeader(doc, y);
+  y = drawPrTitleBlock(doc, y, data);
+  y = drawKpiRow(doc, y, data.kpis);
+
+  if (data.narrative.length > 0) {
+    y = ensureRoom(doc, y, 60);
+    y = drawSectionHeader(doc, y, 'Executive Summary');
+    y = drawNarrative(doc, y, data.narrative);
+  }
+
+  if (data.byProject.length > 0) {
+    y = ensureRoom(doc, y, 80);
+    y = drawSectionHeader(doc, y, 'By Project');
+    y = drawProjectList(doc, y, data.byProject);
+  }
+
+  if (data.allocation.length > 0) {
+    y = ensureRoom(doc, y, 80);
+    y = drawSectionHeader(doc, y, 'Time Allocation');
+    y = drawLegend(doc, y, data.allocation);
+  }
+
+  if (data.topAccomplishments.length > 0) {
+    y = ensureRoom(doc, y, 60);
+    y = drawSectionHeader(doc, y, 'Top Accomplishments');
+    y = drawAccomplishmentList(doc, y, data.topAccomplishments);
+  }
+
+  if (data.keyAchievements.length > 0) {
+    y = ensureRoom(doc, y, 60);
+    y = drawSectionHeader(doc, y, 'Key Achievements');
+    y = drawItemList(doc, y, data.keyAchievements, COLORS.blue500);
+  }
+
+  if (data.growthAreas.length > 0) {
+    y = ensureRoom(doc, y, 60);
+    y = drawSectionHeader(doc, y, 'Growth Areas');
+    y = drawItemList(doc, y, data.growthAreas, COLORS.purple500);
+  }
+
+  stampFootersOnEveryPage(doc);
+
+  return doc.output('blob');
+}
+
+/** Slug the rangeLabel into a filename-safe string.
+ *  "Q1 2026 · Jan–Mar" → "taskpanels-review-q1-2026-jan-mar.pdf" */
+export function filenameForReview(rangeLabel: string): string {
+  const slug = rangeLabel
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 40);
+  return `taskpanels-review-${slug || Date.now()}.pdf`;
+}
+
+// ---- Performance Review drawing helpers ----
+
+function drawPrTitleBlock(doc: jsPDF, y: number, data: PerformanceReviewData): number {
+  setText(doc, COLORS.slate900);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(22);
+  doc.text('Performance Review', MARGIN_X, y + 18);
+
+  setText(doc, COLORS.slate500);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(10);
+  doc.text(data.rangeLabel, MARGIN_X, y + 32);
+
+  return y + 50;
+}
+
+/** One row per project: color dot, name, time, pct, progress bar,
+ *  and a mini stats line. */
+function drawProjectList(
+  doc: jsPDF,
+  y: number,
+  byProject: ProjectBreakdown[],
+): number {
+  let cursor = y;
+  for (const p of byProject) {
+    const rowH = p.workstreamNames.length > 0 ? 58 : 48;
+    cursor = ensureRoom(doc, cursor, rowH);
+
+    // Color dot
+    setFill(doc, hexToRgb(p.colorHex));
+    doc.circle(MARGIN_X + 5, cursor + 5, 4, 'F');
+
+    // Project name
+    setText(doc, p.isUnassigned ? COLORS.slate500 : COLORS.slate900);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    const nameMax = CONTENT_W - 120;
+    doc.text(truncateForWidth(doc, p.projectName, nameMax), MARGIN_X + 16, cursor + 8);
+
+    // Time right-aligned
+    setText(doc, COLORS.slate800);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.text(formatMsPdf(p.totalMs), PAGE_W - MARGIN_X - 36, cursor + 8, { align: 'right' });
+
+    // Pct far right
+    setText(doc, COLORS.slate400);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.text(`${p.pct}%`, PAGE_W - MARGIN_X, cursor + 8, { align: 'right' });
+
+    // Progress bar
+    const barY = cursor + 16;
+    setFill(doc, COLORS.slate100);
+    doc.roundedRect(MARGIN_X + 16, barY, CONTENT_W - 16, 3, 1, 1, 'F');
+    setFill(doc, hexToRgb(p.colorHex));
+    const fillW = Math.max(2, (p.pct / 100) * (CONTENT_W - 16));
+    doc.roundedRect(MARGIN_X + 16, barY, fillW, 3, 1, 1, 'F');
+
+    // Mini stats line
+    const statParts: string[] = [
+      `Focus: ${formatMsPdf(p.focusMs)}`,
+      p.meetingMs > 0 ? `Meetings: ${formatMsPdf(p.meetingMs)}` : '',
+      `Completed: ${p.completedCount}/${p.workstreamCount}`,
+      p.blockedCount > 0 ? `${p.blockedCount} blocked` : '',
+    ].filter(Boolean);
+    setText(doc, COLORS.slate500);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.text(
+      truncateForWidth(doc, statParts.join('  ·  '), CONTENT_W - 16),
+      MARGIN_X + 16,
+      cursor + 28,
+    );
+
+    // Workstream names (optional second sub-line)
+    if (p.workstreamNames.length > 0) {
+      setText(doc, COLORS.slate400);
+      doc.setFontSize(7.5);
+      const ws = 'Workstreams: ' + p.workstreamNames.join(' · ');
+      doc.text(truncateForWidth(doc, ws, CONTENT_W - 16), MARGIN_X + 16, cursor + 40);
+    }
+
+    cursor += rowH + 4;
+  }
+  return cursor + 6;
+}
+
+/** Accomplishment rows that include a time badge on the right. */
+function drawAccomplishmentList(
+  doc: jsPDF,
+  y: number,
+  items: PerformanceReviewData['topAccomplishments'],
+): number {
+  const lineH = 13;
+  let cursor = y;
+  for (const item of items) {
+    const blockH = 16 + (item.detail ? lineH : 0);
+    cursor = ensureRoom(doc, cursor, blockH);
+
+    setFill(doc, COLORS.emerald500);
+    doc.circle(MARGIN_X + 4, cursor - 2, 2, 'F');
+
+    setText(doc, COLORS.slate900);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    const nameMax = CONTENT_W - 80;
+    doc.text(truncateForWidth(doc, item.name, nameMax), MARGIN_X + 14, cursor);
+
+    setText(doc, COLORS.slate400);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.text(item.time, PAGE_W - MARGIN_X, cursor, { align: 'right' });
+
+    if (item.detail) {
+      cursor += lineH;
+      setText(doc, COLORS.slate500);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      doc.text(truncateForWidth(doc, item.detail, CONTENT_W - 20), MARGIN_X + 14, cursor);
+    }
+
+    cursor += lineH + 4;
+  }
+  return cursor + 6;
+}
+
+/** Generic bullet list for achievements / growth areas (no time badge). */
+function drawItemList(
+  doc: jsPDF,
+  y: number,
+  items: Array<{ name: string; detail: string; barClass: string }>,
+  accent: RGB,
+): number {
+  const lineH = 13;
+  let cursor = y;
+  for (const item of items) {
+    const blockH = 16 + (item.detail ? lineH : 0);
+    cursor = ensureRoom(doc, cursor, blockH);
+
+    setFill(doc, accent);
+    doc.circle(MARGIN_X + 4, cursor - 2, 2, 'F');
+
+    setText(doc, COLORS.slate900);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.text(truncateForWidth(doc, item.name, CONTENT_W - 20), MARGIN_X + 14, cursor);
+
+    if (item.detail) {
+      cursor += lineH;
+      setText(doc, COLORS.slate500);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      doc.text(truncateForWidth(doc, item.detail, CONTENT_W - 20), MARGIN_X + 14, cursor);
+    }
+
+    cursor += lineH + 4;
+  }
+  return cursor + 6;
+}
+
+/** Format milliseconds to "Xh Ym" for use inside PDF drawing helpers. */
+function formatMsPdf(ms: number): string {
+  const totalMin = Math.round(ms / 60_000);
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  if (h === 0) return `${m}m`;
+  if (m === 0) return `${h}h`;
+  return `${h}h ${m}m`;
 }

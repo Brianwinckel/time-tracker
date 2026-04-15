@@ -21,7 +21,7 @@
 //      the origin with them.
 // ============================================================
 
-import type { DailySummaryData } from './summaryModel';
+import type { DailySummaryData, PerformanceReviewData } from './summaryModel';
 
 // Marketing site, not the app itself — recipients of a forwarded
 // report should land on the landing page, not the logged-in app.
@@ -161,11 +161,136 @@ export function buildMailtoUrl(
   return `mailto:${recipient}?${qs}`;
 }
 
+/** Build the plain-text Performance Review that the Copy and
+ *  Email buttons produce. Follows the same section-by-section
+ *  pattern as toPlainText above. */
+export function prToPlainText(data: PerformanceReviewData): string {
+  const lines: string[] = [];
+
+  // ---- Title block ----
+  lines.push('PERFORMANCE REVIEW');
+  lines.push(data.rangeLabel);
+  lines.push(divider());
+  lines.push('');
+
+  // ---- KPIs ----
+  if (data.kpis.length > 0) {
+    for (const kpi of data.kpis) {
+      const sub = kpi.sub ? ` (${kpi.sub})` : '';
+      lines.push(`${kpi.label.padEnd(14)} ${kpi.value}${sub}`);
+    }
+    lines.push('');
+  }
+
+  // ---- Narrative ----
+  if (data.narrative.length > 0) {
+    lines.push('EXECUTIVE SUMMARY');
+    lines.push(divider('-'));
+    for (const paragraph of data.narrative) {
+      lines.push(stripMarkdownBold(paragraph));
+      lines.push('');
+    }
+  }
+
+  // ---- By Project ----
+  if (data.byProject.length > 0) {
+    lines.push('BY PROJECT');
+    lines.push(divider('-'));
+    for (const p of data.byProject) {
+      const time = formatMs(p.totalMs);
+      lines.push(`${truncate(p.projectName, 24).padEnd(24)}  ${time.padStart(8)}  ${String(p.pct).padStart(3)}%`);
+      if (p.workstreamNames.length > 0) {
+        lines.push(`  ${p.workstreamNames.join(' · ')}`);
+      }
+    }
+    lines.push('');
+  }
+
+  // ---- Time Allocation ----
+  if (data.allocation.length > 0) {
+    lines.push('TIME ALLOCATION');
+    lines.push(divider('-'));
+    const maxNameLen = Math.max(...data.allocation.map(l => l.name.length));
+    const namePad = Math.min(maxNameLen, 28);
+    for (const entry of data.allocation) {
+      const name = truncate(entry.name, namePad).padEnd(namePad);
+      lines.push(`${name}  ${entry.time.padStart(8)}  ${String(entry.pct).padStart(3)}%`);
+    }
+    lines.push('');
+  }
+
+  // ---- Top Accomplishments ----
+  if (data.topAccomplishments.length > 0) {
+    lines.push('TOP ACCOMPLISHMENTS');
+    lines.push(divider('-'));
+    for (const item of data.topAccomplishments) {
+      lines.push(`+ ${item.name}  (${item.time})`);
+      if (item.detail) lines.push(`  ${item.detail}`);
+    }
+    lines.push('');
+  }
+
+  // ---- Key Achievements ----
+  if (data.keyAchievements.length > 0) {
+    lines.push('KEY ACHIEVEMENTS');
+    lines.push(divider('-'));
+    for (const item of data.keyAchievements) {
+      lines.push(`+ ${item.name}`);
+      if (item.detail) lines.push(`  ${item.detail}`);
+    }
+    lines.push('');
+  }
+
+  // ---- Growth Areas ----
+  if (data.growthAreas.length > 0) {
+    lines.push('GROWTH AREAS');
+    lines.push(divider('-'));
+    for (const item of data.growthAreas) {
+      lines.push(`> ${item.name}`);
+      if (item.detail) lines.push(`  ${item.detail}`);
+    }
+    lines.push('');
+  }
+
+  // ---- Footer ----
+  lines.push(divider());
+  lines.push(`Generated with ${APP_NAME} · ${APP_URL}`);
+
+  return lines.join('\n').replace(/\n{3,}/g, '\n\n');
+}
+
+/** Assemble the `mailto:` href for the Performance Review Email button. */
+export function prBuildMailtoUrl(
+  data: PerformanceReviewData,
+  recipient: string = '',
+): string {
+  const subject = `Performance Review — ${data.rangeLabel}`;
+  const body =
+    prToPlainText(data) +
+    '\n\n' +
+    `A PDF version of this report is available via the Download button in ${APP_NAME}.`;
+  const qs =
+    `subject=${encodeURIComponent(subject)}` +
+    `&body=${encodeURIComponent(body)}`;
+  return `mailto:${recipient}?${qs}`;
+}
+
 /** Strip `**bold**` markdown markers that the deterministic
  *  narrative generator sprinkles in. They render as literal
  *  asterisks in plain text contexts — not useful. */
 export function stripMarkdownBold(s: string): string {
   return s.replace(/\*\*(.+?)\*\*/g, '$1');
+}
+
+/** Format a millisecond duration as "Xh Ym". Used by prToPlainText
+ *  without importing from summaryModel so this file stays self-contained. */
+function formatMs(ms: number): string {
+  const totalMin = Math.round(ms / 60_000);
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  if (h === 0) return `${m}m`;
+  if (m === 0) return `${h}h`;
+  return `${h}h ${m}m`;
 }
 
 function divider(ch: string = '='): string {

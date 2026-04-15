@@ -9,7 +9,7 @@
 //   - "Productivity Score" (invented metric)
 // ============================================================
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useNav } from '../../lib/previewNav';
 import {
   formatHM,
@@ -19,6 +19,7 @@ import {
   type ProjectBreakdown,
   type KPI,
 } from '../../lib/summaryModel';
+import { prToPlainText, prBuildMailtoUrl } from '../../lib/summaryExport';
 
 // ---- Icons ----
 
@@ -53,11 +54,20 @@ const DownloadIcon = () => (
   </svg>
 );
 
-// Note: CheckIconSmall / SpinnerIcon are intentionally omitted until the
-// Copy / Download buttons in this screen get their handlers wired up —
-// declaring unused components would trip noUnusedLocals. Add them back
-// alongside the handlers when we adapt toPlainText / generatePdf for
-// PerformanceReviewData.
+// Swapped in for the Copy icon for ~2s after the user taps Copy.
+const CheckIconSmall = () => (
+  <svg className="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+    <path d="M5 13l4 4L19 7" />
+  </svg>
+);
+
+// Spinner shown on the Download button while jspdf generates the PDF.
+const SpinnerIcon = () => (
+  <svg className="w-4 h-4 text-slate-500 animate-spin" fill="none" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth={3} strokeOpacity={0.25} />
+    <path d="M12 2a10 10 0 0110 10" stroke="currentColor" strokeWidth={3} strokeLinecap="round" />
+  </svg>
+);
 
 // Tab bar icons (matching DailyWorkSummaryScreen)
 const TrackerIcon = () => (
@@ -488,6 +498,40 @@ const PerformanceReviewScreen: React.FC = () => {
     [currentSummary],
   );
 
+  const [copied, setCopied] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+
+  const handleCopy = async () => {
+    if (!data) return;
+    try {
+      await navigator.clipboard.writeText(prToPlainText(data));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard can reject in insecure contexts / permissions-denied.
+    }
+  };
+
+  const handleEmail = () => {
+    if (!data) return;
+    window.location.href = prBuildMailtoUrl(data);
+  };
+
+  const handleDownload = async () => {
+    if (!data || downloading) return;
+    setDownloading(true);
+    try {
+      const { generatePerformanceReviewPdf, downloadBlob, filenameForReview } =
+        await import('../../lib/summaryPdf');
+      const blob = await generatePerformanceReviewPdf(data);
+      downloadBlob(blob, filenameForReview(data.rangeLabel));
+    } catch (err) {
+      console.error('Failed to generate PDF', err);
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   if (!data) {
     return (
       <div className="flex flex-col h-full overflow-hidden">
@@ -516,14 +560,16 @@ const PerformanceReviewScreen: React.FC = () => {
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                aria-label="Copy summary"
-                title="Copy summary"
+                onClick={handleCopy}
+                aria-label={copied ? 'Copied to clipboard' : 'Copy summary as plain text'}
+                title={copied ? 'Copied!' : 'Copy as plain text'}
                 className="w-9 h-9 rounded-xl border border-slate-200 flex items-center justify-center hover:bg-slate-50 transition-colors"
               >
-                <CopyIcon />
+                {copied ? <CheckIconSmall /> : <CopyIcon />}
               </button>
               <button
                 type="button"
+                onClick={handleEmail}
                 aria-label="Email summary"
                 title="Email summary"
                 className="w-9 h-9 rounded-xl border border-slate-200 flex items-center justify-center hover:bg-slate-50 transition-colors"
@@ -532,11 +578,13 @@ const PerformanceReviewScreen: React.FC = () => {
               </button>
               <button
                 type="button"
-                aria-label="Download as PDF"
-                title="Download as PDF"
+                onClick={handleDownload}
+                disabled={downloading}
+                aria-label={downloading ? 'Generating PDF' : 'Download as PDF'}
+                title={downloading ? 'Generating PDF…' : 'Download as PDF'}
                 className="w-9 h-9 rounded-xl border border-slate-200 flex items-center justify-center hover:bg-slate-50 transition-colors"
               >
-                <DownloadIcon />
+                {downloading ? <SpinnerIcon /> : <DownloadIcon />}
               </button>
             </div>
           </div>
@@ -574,13 +622,15 @@ const PerformanceReviewScreen: React.FC = () => {
             <div className="flex items-center gap-1.5 shrink-0">
               <button
                 type="button"
-                aria-label="Copy summary"
+                onClick={handleCopy}
+                aria-label={copied ? 'Copied to clipboard' : 'Copy summary as plain text'}
                 className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center hover:bg-slate-50 transition-colors"
               >
-                <CopyIcon />
+                {copied ? <CheckIconSmall /> : <CopyIcon />}
               </button>
               <button
                 type="button"
+                onClick={handleEmail}
                 aria-label="Email summary"
                 className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center hover:bg-slate-50 transition-colors"
               >
@@ -588,10 +638,12 @@ const PerformanceReviewScreen: React.FC = () => {
               </button>
               <button
                 type="button"
-                aria-label="Download as PDF"
+                onClick={handleDownload}
+                disabled={downloading}
+                aria-label={downloading ? 'Generating PDF' : 'Download as PDF'}
                 className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center hover:bg-slate-50 transition-colors"
               >
-                <DownloadIcon />
+                {downloading ? <SpinnerIcon /> : <DownloadIcon />}
               </button>
             </div>
           </div>
