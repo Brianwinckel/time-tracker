@@ -12,12 +12,37 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNav } from '../../lib/previewNav';
-import { makePanelFromType, DEFAULT_PANELS } from '../../lib/panelCatalog';
+import {
+  makePanelFromType,
+  DEFAULT_PANELS,
+  type MeetingType,
+  type MeetingAudience,
+} from '../../lib/panelCatalog';
 import { ProjectPicker } from '../ProjectPicker';
 
 // ---- Mock Data ----
 
-const WORK_TYPES = ['Coding', 'Writing', 'Strategy', 'Research', 'Review', 'Revisions', 'Meeting', 'Admin'];
+// Work-session chips — Meeting is intentionally NOT in this list now that
+// meetings are a first-class session type (panel.kind === 'meeting'). If a
+// user wants to capture "this panel was a meeting," they start a Meeting
+// session from Pick Panel; the Fullscreen then renders the Meeting variant
+// with richer fields. We still accept a legacy workType of 'Meeting' in the
+// summary model so archived data doesn't break.
+const WORK_TYPES = ['Coding', 'Writing', 'Strategy', 'Research', 'Review', 'Revisions', 'Admin'];
+
+// Meeting-context option sets. Kept at module scope so the chip renderers
+// don't re-allocate on every keystroke.
+const MEETING_TYPE_OPTIONS: { id: MeetingType; label: string }[] = [
+  { id: 'planned',   label: 'Planned' },
+  { id: 'impromptu', label: 'Impromptu' },
+];
+
+const MEETING_AUDIENCE_OPTIONS: { id: MeetingAudience; label: string }[] = [
+  { id: 'internal',   label: 'Internal' },
+  { id: 'client',     label: 'Client' },
+  { id: 'leadership', label: 'Leadership' },
+  { id: 'vendor',     label: 'Vendor / Partner' },
+];
 
 // Keep this list in lock-step with PANEL_COLOR_OPTIONS in lib/panelCatalog.ts.
 // Every catalog color MUST have an entry in THEME below or the fullscreen
@@ -301,6 +326,15 @@ export function FullscreenPanelScreen() {
   const [showTagInput, setShowTagInput] = useState(false);
   const [sessionState, setSessionState] = useState<string>(panel.sessionState ?? '');
 
+  // ---- Meeting-specific state ----
+  // Populated only when panel.kind === 'meeting'. All four live at the
+  // component level so the branched render can reach them; work panels
+  // never paint the corresponding inputs.
+  const isMeeting = panel.kind === 'meeting';
+  const [meetingType, setMeetingType] = useState<MeetingType | undefined>(panel.meetingType);
+  const [meetingAudience, setMeetingAudience] = useState<MeetingAudience | undefined>(panel.audience);
+  const [topic, setTopic] = useState<string>(panel.topic ?? '');
+
   const addTag = (raw: string) => {
     const t = raw.trim().replace(/^#/, '').toLowerCase();
     if (!t) return;
@@ -346,6 +380,23 @@ export function FullscreenPanelScreen() {
   useEffect(() => {
     updatePanel(panel.id, { sessionState });
   }, [panel.id, sessionState, updatePanel]);
+  // Meeting-specific persistence. These effects are always mounted
+  // (React hook rules require it) but only have anything to bind to
+  // when `isMeeting` is true — for work panels the state is initialized
+  // from undefined panel fields and the writes are no-ops against an
+  // unused slot, so they don't corrupt work-panel shape.
+  useEffect(() => {
+    if (!isMeeting) return;
+    updatePanel(panel.id, { meetingType });
+  }, [panel.id, isMeeting, meetingType, updatePanel]);
+  useEffect(() => {
+    if (!isMeeting) return;
+    updatePanel(panel.id, { audience: meetingAudience });
+  }, [panel.id, isMeeting, meetingAudience, updatePanel]);
+  useEffect(() => {
+    if (!isMeeting) return;
+    updatePanel(panel.id, { topic });
+  }, [panel.id, isMeeting, topic, updatePanel]);
 
   // Tick so the display updates once a second while a timer is running.
   const [, setNowTick] = useState<number>(() => Date.now());
@@ -520,7 +571,7 @@ export function FullscreenPanelScreen() {
             </div>
           </div>
 
-          {/* Project */}
+          {/* Project — shared by work + meeting panels */}
           <div>
             <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block mb-1.5">Project</label>
             <ProjectPicker
@@ -530,107 +581,169 @@ export function FullscreenPanelScreen() {
             />
           </div>
 
-          {/* Focus Note */}
-          <div>
-            <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block mb-1.5">What are you working on?</label>
-            <input
-              type="text"
-              placeholder="e.g., Landing page copy"
-              className="w-full h-10 px-3 bg-white border border-slate-200 rounded-xl text-sm text-slate-700 placeholder:text-slate-300"
-              value={focusNote}
-              onChange={(e) => setFocusNote(e.target.value)}
-            />
-          </div>
-
-          {/* Work Type */}
-          <div>
-            <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block mb-2">Work Type</label>
-            <div className="flex flex-wrap gap-1.5">
-              {WORK_TYPES.map((type) => (
-                <span
-                  key={type}
-                  className={`work-chip px-3 py-1.5 rounded-lg border text-xs font-medium cursor-pointer${selectedWorkType === type ? ' selected' : ' border-slate-200 bg-white text-slate-500'}`}
-                  onClick={() => setSelectedWorkType(type)}
-                >
-                  {type}
-                </span>
-              ))}
+          {/* Focus Note (work) OR Topic (meeting) — same visual slot,
+              different semantics. Topic asks "what is this meeting
+              about?" and its value lives in a separate field on the
+              Panel so reporting can tell them apart. */}
+          {isMeeting ? (
+            <div>
+              <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block mb-1.5">What is this meeting about?</label>
+              <input
+                type="text"
+                placeholder="e.g., Q3 launch plan, Client onboarding"
+                className="w-full h-10 px-3 bg-white border border-slate-200 rounded-xl text-sm text-slate-700 placeholder:text-slate-300"
+                value={topic}
+                onChange={(e) => setTopic(e.target.value)}
+              />
             </div>
-          </div>
+          ) : (
+            <div>
+              <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block mb-1.5">What are you working on?</label>
+              <input
+                type="text"
+                placeholder="e.g., Landing page copy"
+                className="w-full h-10 px-3 bg-white border border-slate-200 rounded-xl text-sm text-slate-700 placeholder:text-slate-300"
+                value={focusNote}
+                onChange={(e) => setFocusNote(e.target.value)}
+              />
+            </div>
+          )}
 
-          {/* Tags */}
-          <div>
-            <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block mb-1.5">Tags</label>
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {tags.map(t => (
-                <span
-                  key={t}
-                  className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-100 text-[11px] font-medium text-slate-600"
-                >
-                  {t}
+          {/* Meeting-specific context. Renders only on meeting panels;
+              work panels drop straight from Focus Note → Work Type. */}
+          {isMeeting && (
+            <>
+              <div>
+                <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block mb-2">Meeting Type</label>
+                <div className="flex gap-1.5">
+                  {MEETING_TYPE_OPTIONS.map(opt => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => setMeetingType(prev => prev === opt.id ? undefined : opt.id)}
+                      className={`work-chip flex-1 px-3 py-2 rounded-lg border text-xs font-medium cursor-pointer${meetingType === opt.id ? ' selected' : ' border-slate-200 bg-white text-slate-500'}`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block mb-2">Audience</label>
+                <div className="flex flex-wrap gap-1.5">
+                  {MEETING_AUDIENCE_OPTIONS.map(opt => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => setMeetingAudience(prev => prev === opt.id ? undefined : opt.id)}
+                      className={`work-chip px-3 py-1.5 rounded-lg border text-xs font-medium cursor-pointer${meetingAudience === opt.id ? ' selected' : ' border-slate-200 bg-white text-slate-500'}`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Work Type (work panels only) */}
+          {!isMeeting && (
+            <div>
+              <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block mb-2">Work Type</label>
+              <div className="flex flex-wrap gap-1.5">
+                {WORK_TYPES.map((type) => (
+                  <span
+                    key={type}
+                    className={`work-chip px-3 py-1.5 rounded-lg border text-xs font-medium cursor-pointer${selectedWorkType === type ? ' selected' : ' border-slate-200 bg-white text-slate-500'}`}
+                    onClick={() => setSelectedWorkType(type)}
+                  >
+                    {type}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Tags (work panels only) */}
+          {!isMeeting && (
+            <div>
+              <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block mb-1.5">Tags</label>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {tags.map(t => (
+                  <span
+                    key={t}
+                    className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-100 text-[11px] font-medium text-slate-600"
+                  >
+                    {t}
+                    <button
+                      type="button"
+                      onClick={() => removeTag(t)}
+                      className="text-slate-400 hover:text-slate-600"
+                      aria-label={`Remove ${t}`}
+                    >
+                      <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </span>
+                ))}
+                {showTagInput ? (
+                  <input
+                    autoFocus
+                    value={tagDraft}
+                    onChange={(e) => setTagDraft(e.target.value)}
+                    onBlur={() => { if (tagDraft.trim()) addTag(tagDraft); else setShowTagInput(false); }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') { e.preventDefault(); addTag(tagDraft); }
+                      else if (e.key === 'Escape') { setTagDraft(''); setShowTagInput(false); }
+                    }}
+                    placeholder="tag"
+                    className="px-2 py-1 rounded-lg border border-dashed border-slate-300 text-[11px] font-medium text-slate-600 bg-white w-20 outline-none focus:border-slate-400"
+                  />
+                ) : (
                   <button
                     type="button"
-                    onClick={() => removeTag(t)}
-                    className="text-slate-400 hover:text-slate-600"
-                    aria-label={`Remove ${t}`}
+                    onClick={() => setShowTagInput(true)}
+                    className="inline-flex items-center gap-0.5 px-2 py-1 rounded-lg border border-dashed border-slate-200 text-[11px] font-medium text-slate-400 hover:text-slate-600 hover:border-slate-300"
                   >
                     <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path d="M6 18L18 6M6 6l12 12" />
+                      <path d="M12 6v12m6-6H6" />
                     </svg>
+                    Add
                   </button>
-                </span>
-              ))}
-              {showTagInput ? (
-                <input
-                  autoFocus
-                  value={tagDraft}
-                  onChange={(e) => setTagDraft(e.target.value)}
-                  onBlur={() => { if (tagDraft.trim()) addTag(tagDraft); else setShowTagInput(false); }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') { e.preventDefault(); addTag(tagDraft); }
-                    else if (e.key === 'Escape') { setTagDraft(''); setShowTagInput(false); }
-                  }}
-                  placeholder="tag"
-                  className="px-2 py-1 rounded-lg border border-dashed border-slate-300 text-[11px] font-medium text-slate-600 bg-white w-20 outline-none focus:border-slate-400"
-                />
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setShowTagInput(true)}
-                  className="inline-flex items-center gap-0.5 px-2 py-1 rounded-lg border border-dashed border-slate-200 text-[11px] font-medium text-slate-400 hover:text-slate-600 hover:border-slate-300"
-                >
-                  <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path d="M12 6v12m6-6H6" />
-                  </svg>
-                  Add
-                </button>
-              )}
+                )}
+              </div>
             </div>
-          </div>
+          )}
 
-          {/* Session State */}
-          <div>
-            <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block mb-2">Session State</label>
-            <div className="flex gap-1.5">
-              {SESSION_STATES.map((state) => (
-                <button
-                  key={state.id}
-                  type="button"
-                  onClick={() => toggleSessionState(state.id)}
-                  className={`state-toggle flex-1 py-2.5 rounded-xl border text-xs font-medium flex items-center justify-center gap-1.5 cursor-pointer${
-                    sessionState === state.id
-                      ? ' on'
-                      : ' border-slate-200 bg-white text-slate-500'
-                  }`}
-                >
-                  {state.icon}
-                  {state.label}
-                </button>
-              ))}
+          {/* Session State (work panels only — meetings don't need a
+              focused/stuck/wrapping axis; they have a start and an end
+              and that's the axis that matters) */}
+          {!isMeeting && (
+            <div>
+              <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block mb-2">Session State</label>
+              <div className="flex gap-1.5">
+                {SESSION_STATES.map((state) => (
+                  <button
+                    key={state.id}
+                    type="button"
+                    onClick={() => toggleSessionState(state.id)}
+                    className={`state-toggle flex-1 py-2.5 rounded-xl border text-xs font-medium flex items-center justify-center gap-1.5 cursor-pointer${
+                      sessionState === state.id
+                        ? ' on'
+                        : ' border-slate-200 bg-white text-slate-500'
+                    }`}
+                  >
+                    {state.icon}
+                    {state.label}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
-          {/* Notes */}
+          {/* Notes (shared) */}
           <div>
             <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block mb-1.5">
               Notes <span className="font-normal normal-case text-slate-300">optional</span>
@@ -792,9 +905,12 @@ export function FullscreenPanelScreen() {
                 </div>
               </div>
 
-              {/* Work Context */}
+              {/* Context — branches on panel.kind. Work panels render the
+                  project/focus-note/work-type/tags ladder; meeting panels
+                  render project/topic/meeting-type/audience instead. Both
+                  variants share the Project picker at the top. */}
               <div className="space-y-5">
-                {/* Project */}
+                {/* Project — shared */}
                 <div>
                   <label className="text-xs font-semibold uppercase tracking-wider text-slate-400 block mb-1.5">Project</label>
                   <ProjectPicker
@@ -804,108 +920,164 @@ export function FullscreenPanelScreen() {
                   />
                 </div>
 
-                {/* Focus Note */}
-                <div>
-                  <label className="text-xs font-semibold uppercase tracking-wider text-slate-400 block mb-1.5">What are you working on?</label>
-                  <input
-                    type="text"
-                    placeholder="e.g., Landing page copy"
-                    className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-sm text-slate-700 placeholder:text-slate-300"
-                    value={focusNote}
-                    onChange={(e) => setFocusNote(e.target.value)}
-                  />
-                </div>
-
-                {/* Work Type */}
-                <div>
-                  <label className="text-xs font-semibold uppercase tracking-wider text-slate-400 block mb-2">Work Type</label>
-                  <div className="flex flex-wrap gap-2">
-                    {WORK_TYPES.map((type) => (
-                      <span
-                        key={type}
-                        className={`work-chip px-3.5 py-2 rounded-xl border text-xs font-medium cursor-pointer${selectedWorkType === type ? ' selected' : ' border-slate-200 bg-white text-slate-500'}`}
-                        onClick={() => setSelectedWorkType(type)}
-                      >
-                        {type}
-                      </span>
-                    ))}
+                {/* Focus Note (work) OR Topic (meeting) */}
+                {isMeeting ? (
+                  <div>
+                    <label className="text-xs font-semibold uppercase tracking-wider text-slate-400 block mb-1.5">What is this meeting about?</label>
+                    <input
+                      type="text"
+                      placeholder="e.g., Q3 launch plan, Client onboarding"
+                      className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-sm text-slate-700 placeholder:text-slate-300"
+                      value={topic}
+                      onChange={(e) => setTopic(e.target.value)}
+                    />
                   </div>
-                </div>
+                ) : (
+                  <div>
+                    <label className="text-xs font-semibold uppercase tracking-wider text-slate-400 block mb-1.5">What are you working on?</label>
+                    <input
+                      type="text"
+                      placeholder="e.g., Landing page copy"
+                      className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-sm text-slate-700 placeholder:text-slate-300"
+                      value={focusNote}
+                      onChange={(e) => setFocusNote(e.target.value)}
+                    />
+                  </div>
+                )}
 
-                {/* Tags */}
-                <div>
-                  <label className="text-xs font-semibold uppercase tracking-wider text-slate-400 block mb-1.5">Tags</label>
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    {tags.map(t => (
-                      <span
-                        key={t}
-                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-100 text-[11px] font-medium text-slate-600"
-                      >
-                        {t}
+                {/* Meeting Type + Audience (meetings only) */}
+                {isMeeting && (
+                  <>
+                    <div>
+                      <label className="text-xs font-semibold uppercase tracking-wider text-slate-400 block mb-2">Meeting Type</label>
+                      <div className="flex gap-2">
+                        {MEETING_TYPE_OPTIONS.map(opt => (
+                          <button
+                            key={opt.id}
+                            type="button"
+                            onClick={() => setMeetingType(prev => prev === opt.id ? undefined : opt.id)}
+                            className={`work-chip flex-1 px-3.5 py-2.5 rounded-xl border text-sm font-medium cursor-pointer${meetingType === opt.id ? ' selected' : ' border-slate-200 bg-white text-slate-500'}`}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-semibold uppercase tracking-wider text-slate-400 block mb-2">Audience</label>
+                      <div className="flex flex-wrap gap-2">
+                        {MEETING_AUDIENCE_OPTIONS.map(opt => (
+                          <button
+                            key={opt.id}
+                            type="button"
+                            onClick={() => setMeetingAudience(prev => prev === opt.id ? undefined : opt.id)}
+                            className={`work-chip px-3.5 py-2 rounded-xl border text-xs font-medium cursor-pointer${meetingAudience === opt.id ? ' selected' : ' border-slate-200 bg-white text-slate-500'}`}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {/* Work Type (work panels only) */}
+                {!isMeeting && (
+                  <div>
+                    <label className="text-xs font-semibold uppercase tracking-wider text-slate-400 block mb-2">Work Type</label>
+                    <div className="flex flex-wrap gap-2">
+                      {WORK_TYPES.map((type) => (
+                        <span
+                          key={type}
+                          className={`work-chip px-3.5 py-2 rounded-xl border text-xs font-medium cursor-pointer${selectedWorkType === type ? ' selected' : ' border-slate-200 bg-white text-slate-500'}`}
+                          onClick={() => setSelectedWorkType(type)}
+                        >
+                          {type}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Tags (work panels only) */}
+                {!isMeeting && (
+                  <div>
+                    <label className="text-xs font-semibold uppercase tracking-wider text-slate-400 block mb-1.5">Tags</label>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {tags.map(t => (
+                        <span
+                          key={t}
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-100 text-[11px] font-medium text-slate-600"
+                        >
+                          {t}
+                          <button
+                            type="button"
+                            onClick={() => removeTag(t)}
+                            className="text-slate-400 hover:text-slate-600"
+                            aria-label={`Remove ${t}`}
+                          >
+                            <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </span>
+                      ))}
+                      {showTagInput ? (
+                        <input
+                          autoFocus
+                          value={tagDraft}
+                          onChange={(e) => setTagDraft(e.target.value)}
+                          onBlur={() => { if (tagDraft.trim()) addTag(tagDraft); else setShowTagInput(false); }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') { e.preventDefault(); addTag(tagDraft); }
+                            else if (e.key === 'Escape') { setTagDraft(''); setShowTagInput(false); }
+                          }}
+                          placeholder="tag"
+                          className="px-2.5 py-1.5 rounded-lg border border-dashed border-slate-300 text-[11px] font-medium text-slate-600 bg-white w-24 outline-none focus:border-slate-400"
+                        />
+                      ) : (
                         <button
                           type="button"
-                          onClick={() => removeTag(t)}
-                          className="text-slate-400 hover:text-slate-600"
-                          aria-label={`Remove ${t}`}
+                          onClick={() => setShowTagInput(true)}
+                          className="inline-flex items-center gap-0.5 px-2.5 py-1.5 rounded-lg border border-dashed border-slate-200 text-[11px] font-medium text-slate-400 hover:text-slate-600 hover:border-slate-300"
                         >
                           <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path d="M6 18L18 6M6 6l12 12" />
+                            <path d="M12 6v12m6-6H6" />
                           </svg>
+                          Add
                         </button>
-                      </span>
-                    ))}
-                    {showTagInput ? (
-                      <input
-                        autoFocus
-                        value={tagDraft}
-                        onChange={(e) => setTagDraft(e.target.value)}
-                        onBlur={() => { if (tagDraft.trim()) addTag(tagDraft); else setShowTagInput(false); }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') { e.preventDefault(); addTag(tagDraft); }
-                          else if (e.key === 'Escape') { setTagDraft(''); setShowTagInput(false); }
-                        }}
-                        placeholder="tag"
-                        className="px-2.5 py-1.5 rounded-lg border border-dashed border-slate-300 text-[11px] font-medium text-slate-600 bg-white w-24 outline-none focus:border-slate-400"
-                      />
-                    ) : (
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Session State (work panels only) */}
+              {!isMeeting && (
+                <div>
+                  <label className="text-xs font-semibold uppercase tracking-wider text-slate-400 block mb-2">Session State</label>
+                  <div className="flex gap-1.5">
+                    {SESSION_STATES.map((state) => (
                       <button
+                        key={state.id}
                         type="button"
-                        onClick={() => setShowTagInput(true)}
-                        className="inline-flex items-center gap-0.5 px-2.5 py-1.5 rounded-lg border border-dashed border-slate-200 text-[11px] font-medium text-slate-400 hover:text-slate-600 hover:border-slate-300"
+                        onClick={() => toggleSessionState(state.id)}
+                        className={`state-toggle px-4 py-2.5 rounded-xl border text-xs font-medium flex items-center justify-center gap-1.5 cursor-pointer${
+                          sessionState === state.id
+                            ? ' on'
+                            : ' border-slate-200 bg-white text-slate-500'
+                        }`}
                       >
-                        <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path d="M12 6v12m6-6H6" />
-                        </svg>
-                        Add
+                        {state.icon}
+                        {state.label}
                       </button>
-                    )}
+                    ))}
                   </div>
                 </div>
-              </div>
+              )}
 
-              {/* Session State */}
-              <div>
-                <label className="text-xs font-semibold uppercase tracking-wider text-slate-400 block mb-2">Session State</label>
-                <div className="flex gap-1.5">
-                  {SESSION_STATES.map((state) => (
-                    <button
-                      key={state.id}
-                      type="button"
-                      onClick={() => toggleSessionState(state.id)}
-                      className={`state-toggle px-4 py-2.5 rounded-xl border text-xs font-medium flex items-center justify-center gap-1.5 cursor-pointer${
-                        sessionState === state.id
-                          ? ' on'
-                          : ' border-slate-200 bg-white text-slate-500'
-                      }`}
-                    >
-                      {state.icon}
-                      {state.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Notes */}
+              {/* Notes (shared) */}
               <div>
                 <label className="text-xs font-semibold uppercase tracking-wider text-slate-400 block mb-1.5">
                   Notes <span className="font-normal normal-case text-slate-300">optional</span>

@@ -170,6 +170,27 @@ export function saveCatalog(panels: MockPanel[]): void {
 
 export type PanelStatus = 'active' | 'done';
 
+/** Session type classification at the Panel-instance level.
+ *
+ *  Why here and not on MockPanel (the catalog template)? Meetings
+ *  are one-shot by nature — "Client Call, 3pm Tuesday" isn't a
+ *  reusable template the user picks repeatedly. Work sessions are
+ *  template-driven ("Website Refresh" is a catalog entry that
+ *  spawns new instances). So the kind lives on the instance.
+ *
+ *  Break/Lunch are intentionally NOT in this enum. Those stay as
+ *  sentinel panelIds on runs (BREAK_PANEL_ID / LUNCH_PANEL_ID)
+ *  because they're utility countdowns, not tracked work the user
+ *  labels with project + topic. Keeping them separate preserves the
+ *  existing timer/countdown flow and the sentinel-based timeline
+ *  rendering. */
+export type PanelKind = 'work' | 'meeting';
+
+/** Meeting-specific enums. All optional on Panel — work instances
+ *  ignore them, meeting instances populate them during the session. */
+export type MeetingType = 'planned' | 'impromptu';
+export type MeetingAudience = 'internal' | 'client' | 'leadership' | 'vendor';
+
 /**
  * A Panel instance is one live card on Home. It's created from a catalog
  * entry (PanelType) and then carries its own project / work type / focus
@@ -182,9 +203,17 @@ export type PanelStatus = 'active' | 'done';
  */
 export interface Panel {
   id: string;
+  /** For work panels, the catalog template id this instance was spawned
+   *  from. Meeting panels don't have a template — the field carries the
+   *  MEETING_TYPE_ID sentinel so the downstream code can still group
+   *  "all meetings" without special-casing undefined. */
   typeId: string;
   createdAt: number;
   status: PanelStatus;
+  /** Session type — Work is the default (and what every legacy panel
+   *  migrates to). Meetings get meeting-specific fields below and a
+   *  different Fullscreen variant. */
+  kind: PanelKind;
   // Snapshot from the type — editable per-instance afterward.
   name: string;
   color: string;
@@ -206,7 +235,23 @@ export interface Panel {
   tags?: string[];
   sessionState?: string;
   iconIndex?: number;
+  // ---- Meeting-specific context (only set when kind === 'meeting') ----
+  /** Planned (scheduled in advance) vs Impromptu (ad-hoc / walked-up). */
+  meetingType?: MeetingType;
+  /** Who the meeting is with. Single-select; null/undefined if unset. */
+  audience?: MeetingAudience;
+  /** Short purpose string — "What is this meeting about?" Reuses the same
+   *  position as `focusNote` visually but is a distinct field so the
+   *  report renderer can tell them apart and label accordingly. */
+  topic?: string;
 }
+
+/** Sentinel typeId for meeting instances. Meetings have no catalog
+ *  template (see PanelKind doc), but `typeId: string` is non-nullable,
+ *  so we route them through this constant. Downstream code that groups
+ *  instances by typeId should filter MEETING_TYPE_ID if it's showing
+ *  the template list. */
+export const MEETING_TYPE_ID = '__meeting__';
 
 /** Build a fresh Panel instance from a catalog entry. */
 export function makePanelFromType(type: MockPanel): Panel {
@@ -219,6 +264,7 @@ export function makePanelFromType(type: MockPanel): Panel {
     typeId: type.id,
     createdAt: Date.now(),
     status: 'active',
+    kind: 'work',
     name: type.name,
     color: type.color,
     bgClass: type.bgClass,
@@ -226,6 +272,39 @@ export function makePanelFromType(type: MockPanel): Panel {
     barClass: type.barClass,
     timerColorClass: type.timerColorClass,
     activeColorClass: type.activeColorClass,
+  };
+}
+
+/** Build a fresh meeting Panel instance. Meetings have no catalog
+ *  template — the caller supplies a name (defaulted by PickPanel) and
+ *  optionally a color. A distinct factory keeps the type-narrowing
+ *  clean for downstream code: `kind` is always 'meeting', never inferred.
+ *
+ *  Visual defaults to `slate` (a neutral, non-project accent) so meeting
+ *  cards read as a different "category" of session at a glance, without
+ *  looking broken if the user skips picking a color. */
+export function makeMeetingPanel(input: {
+  name?: string;
+  colorId?: string;
+} = {}): Panel {
+  const opt = colorOptionFor(input.colorId ?? 'slate');
+  const id =
+    typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? crypto.randomUUID()
+      : `panel_meet_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  return {
+    id,
+    typeId: MEETING_TYPE_ID,
+    createdAt: Date.now(),
+    status: 'active',
+    kind: 'meeting',
+    name: input.name?.trim() || 'Meeting',
+    color: opt.id,
+    bgClass: opt.bgClass,
+    borderClass: opt.borderClass,
+    barClass: opt.barClass,
+    timerColorClass: opt.timerColorClass,
+    activeColorClass: opt.activeColorClass,
   };
 }
 
@@ -239,12 +318,16 @@ export function loadPanels(): Panel[] {
     const parsed = JSON.parse(raw) as Panel[];
     if (!Array.isArray(parsed)) return [];
     // Re-hydrate visual fields by looking up the color option. Guards
-    // against future theme tweaks that change class strings.
+    // against future theme tweaks that change class strings. Also
+    // migrates any panel persisted before `kind` existed — it defaults
+    // to 'work' so legacy instances keep flowing through the work-type
+    // rendering path.
     return parsed.map(p => {
       const opt = colorOptionFor(p.color ?? 'blue');
       return {
         ...p,
         status: p.status ?? 'active',
+        kind: p.kind ?? 'work',
         createdAt: p.createdAt ?? Date.now(),
         bgClass: opt.bgClass,
         borderClass: opt.borderClass,

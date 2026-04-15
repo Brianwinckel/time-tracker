@@ -51,6 +51,18 @@ const TrashIcon: React.FC<{ className?: string }> = ({ className }) => (
   </svg>
 );
 
+// Meeting card icon — two people silhouettes so "Meeting" reads at a
+// glance even without the label. Intentionally distinct from the panel
+// color dots so users can eye-scan this action apart from the catalog.
+const MeetingIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
+    <circle cx="9" cy="7" r="4" />
+    <path d="M23 21v-2a4 4 0 00-3-3.87" />
+    <path d="M16 3.13a4 4 0 010 7.75" />
+  </svg>
+);
+
 // ---- Inline "New Panel" form ----
 // Kept as a top-level component so it never re-mounts on every
 // keystroke in the parent — otherwise the name input would lose
@@ -139,6 +151,7 @@ export const PickPanelScreen: React.FC = () => {
     createPanel,
     removePanel,
     createPanelInstance,
+    createMeetingInstance,
     panels,
     panelAccum,
     activeTimer,
@@ -199,6 +212,15 @@ export const PickPanelScreen: React.FC = () => {
     navigate('panel', { panelId: instance.id });
   };
 
+  // Start Meeting: one-shot session type (see PanelKind doc in
+  // panelCatalog.ts). Skips the catalog entirely — meetings don't have
+  // templates — and lands directly in the Fullscreen meeting variant
+  // so the user can pick Planned/Impromptu + audience + project + topic.
+  const startMeeting = () => {
+    const instance = createMeetingInstance();
+    navigate('panel', { panelId: instance.id });
+  };
+
   const handleCreate = (name: string, colorId: string) => {
     // Step 1: append new catalog TYPE. Step 2: spin up an instance of it
     // so the user lands in Fullscreen tracking the thing they just named.
@@ -256,6 +278,33 @@ export const PickPanelScreen: React.FC = () => {
                 onCreate={handleCreate}
                 onCancel={() => setCreating(false)}
               />
+            )}
+
+            {/* Start a Meeting — meetings are a distinct session type,
+                not a catalog template. Rendered above the catalog so
+                it reads as a peer entry point rather than "just another
+                panel," and so the user can jump straight into a meeting
+                session without naming it first. */}
+            {!creating && (
+              <button
+                type="button"
+                onClick={startMeeting}
+                className="w-full bg-white rounded-2xl border border-dashed border-slate-300 p-5 flex items-center gap-4 hover:border-slate-400 hover:bg-slate-50 transition-colors text-left group"
+              >
+                <div className="w-11 h-11 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-600 group-hover:bg-slate-200 transition-colors shrink-0">
+                  <MeetingIcon className="w-5 h-5" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base font-bold text-slate-900">Start a Meeting</h3>
+                    <span className="px-1.5 py-0.5 rounded-md bg-slate-100 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Session type</span>
+                  </div>
+                  <p className="text-sm text-slate-500 mt-0.5">Planned or impromptu — tracked separately in reports</p>
+                </div>
+                <svg className="w-5 h-5 text-slate-300 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
             )}
 
             {panelCatalog.length === 0 && !creating && (
@@ -388,6 +437,29 @@ export const PickPanelScreen: React.FC = () => {
               onCancel={() => setCreating(false)}
               compact
             />
+          )}
+
+          {/* Start a Meeting — mobile variant. Matches the desktop card
+              in intent but compacted so it doesn't eat the viewport. */}
+          {!creating && (
+            <button
+              type="button"
+              onClick={startMeeting}
+              className="w-full bg-white rounded-2xl border border-dashed border-slate-300 p-4 flex items-center gap-3 text-left"
+            >
+              <div className="w-10 h-10 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-600 shrink-0">
+                <MeetingIcon className="w-4 h-4" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <h3 className="text-sm font-bold text-slate-900">Start a Meeting</h3>
+                </div>
+                <p className="text-[11px] text-slate-500 mt-0.5 truncate">Planned or impromptu — tracked separately</p>
+              </div>
+              <svg className="w-4 h-4 text-slate-300 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
           )}
 
           {panelCatalog.length === 0 && !creating && (

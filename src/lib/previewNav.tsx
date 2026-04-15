@@ -65,6 +65,10 @@ type NavContextValue = {
   /** Create a live Panel instance from a catalog type and immediately
    *  start its first run. Returns the new instance. */
   createPanelInstance: (typeId: string) => Panel | null;
+  /** Create a live meeting Panel instance (template-free — meetings
+   *  are one-shot) and immediately start its timer. Returns the new
+   *  instance so the caller can navigate into it. */
+  createMeetingInstance: (input?: { name?: string; colorId?: string }) => Panel;
   /** Patch an instance's editable fields (project, workType, focusNote, etc.). */
   updatePanel: (id: string, patch: Partial<Panel>) => void;
   /** Delete a live instance. Stops the timer if it was running. */
@@ -154,6 +158,20 @@ export const useNav = (): NavContextValue => {
       removePanel: noop,
       panels: [],
       createPanelInstance: () => null,
+      createMeetingInstance: () => ({
+        id: 'panel_noop_meeting',
+        typeId: '__meeting__',
+        createdAt: Date.now(),
+        status: 'active',
+        kind: 'meeting',
+        name: 'Meeting',
+        color: 'slate',
+        bgClass: 'bg-slate-100',
+        borderClass: 'border-slate-300',
+        barClass: 'bg-slate-500',
+        timerColorClass: 'text-slate-600',
+        activeColorClass: 'text-slate-500',
+      }),
       updatePanel: noop,
       deletePanelInstance: noop,
       endMyDay: noop,

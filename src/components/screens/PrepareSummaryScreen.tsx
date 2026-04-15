@@ -6,7 +6,7 @@
 
 import React, { useEffect, useState, useMemo } from 'react';
 import { useNav } from '../../lib/previewNav';
-import type { Panel } from '../../lib/panelCatalog';
+import type { Panel, PanelKind, MeetingType, MeetingAudience } from '../../lib/panelCatalog';
 import {
   buildSummaryInput,
   type ReportKind,
@@ -630,6 +630,8 @@ export const PrepareSummaryScreen: React.FC = () => {
 
     // buildSummaryInput still takes a per-panel "drafts" map — synthesize
     // one from the instance fields so we don't have to fork summaryModel.
+    // `kind` and the meeting-specific fields are threaded through so
+    // meetings land as a first-class reporting dimension downstream.
     const panelDraftsFromInstances: Record<
       string,
       {
@@ -639,6 +641,10 @@ export const PrepareSummaryScreen: React.FC = () => {
         project?: string;
         tags?: string[];
         sessionState?: string;
+        kind?: PanelKind;
+        meetingType?: MeetingType;
+        audience?: MeetingAudience;
+        topic?: string;
       }
     > = {};
     for (const p of livePanels) {
@@ -649,6 +655,10 @@ export const PrepareSummaryScreen: React.FC = () => {
         project: p.project,
         tags: p.tags,
         sessionState: p.sessionState,
+        kind: p.kind,
+        meetingType: p.meetingType,
+        audience: p.audience,
+        topic: p.topic,
       };
     }
 

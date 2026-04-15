@@ -18,6 +18,8 @@
 //      reach back into raw edit state.
 // ============================================================
 
+import type { PanelKind, MeetingType, MeetingAudience } from './panelCatalog';
+
 // ---------- Shared enums ----------
 
 export type ReportKind =
@@ -69,8 +71,24 @@ export interface WorkstreamEntry {
   tags: string[];
   sessionState?: string;
   trackedMs: number;
-  /** Derived: true when workType === 'Meeting'. */
+  /** Session type at the Panel-instance level. 'work' is the default and
+   *  what every legacy panel lands as. 'meeting' is opted into via the
+   *  Start-a-Meeting entry point on PickPanel. Kept separate from
+   *  workType (coding / design / etc.) because meetings have their own
+   *  reporting axis. */
+  kind: PanelKind;
+  /** Derived: true when kind === 'meeting' OR legacy workType === 'Meeting'.
+   *  The fallback keeps summaries generated before the meeting refactor
+   *  rendering correctly (their drafts still use the old chip). */
   isMeeting: boolean;
+  /** Meeting-only: planned vs impromptu. Undefined on work panels. */
+  meetingType?: MeetingType;
+  /** Meeting-only: who the meeting is with. Undefined on work panels. */
+  audience?: MeetingAudience;
+  /** Meeting-only: the purpose string ("What is this meeting about?").
+   *  Mirrors focusNote in the report UI but carried separately so the
+   *  narrative writer can label it correctly. */
+  topic?: string;
   included: boolean;
   outcome: PanelOutcome | null;
   followUp: FollowUpDetails;
@@ -238,6 +256,47 @@ export interface ProjectBreakdown {
   colorHex: string;
 }
 
+/** Meeting-specific rollup. Meetings are a first-class reporting
+ *  dimension (alongside projects and workstreams) — the user wants
+ *  to know how the day split between focus time and meetings, what
+ *  share of meetings were planned vs impromptu, and which audiences
+ *  drove the time. Present even when meetingCount === 0 so the
+ *  renderer can hide the block with a single check. */
+export interface MeetingBreakdown {
+  meetingCount: number;
+  meetingMs: number;
+  /** % of included tracked time that was spent in meetings. Rounded. */
+  meetingPct: number;
+  /** Focus vs meeting ratio string, pre-baked. '—' when focusMs is 0. */
+  focusToMeetingRatio: string;
+  /** Planned vs impromptu split. Uncategorized meetings land in neither
+   *  bucket so the two counts don't have to sum to meetingCount. */
+  plannedCount: number;
+  plannedMs: number;
+  impromptuCount: number;
+  impromptuMs: number;
+  /** One row per audience category we saw. Sorted by totalMs desc. */
+  byAudience: Array<{
+    audience: MeetingAudience;
+    label: string;
+    count: number;
+    totalMs: number;
+    /** % of the meeting total (not the overall tracked total). */
+    pct: number;
+  }>;
+  /** Top meetings by time, already time-formatted, for the report list. */
+  topMeetings: Array<{
+    panelId: string;
+    name: string;
+    barClass: string;
+    colorHex: string;
+    detail: string;
+    time: string;
+    meetingType?: MeetingType;
+    audience?: MeetingAudience;
+  }>;
+}
+
 // ---------- Per-report-kind outputs ----------
 
 export interface DailySummaryData {
@@ -248,6 +307,9 @@ export interface DailySummaryData {
   timeline: TimelineEntry[];
   /** Per-project rollup, sorted by totalMs desc. */
   byProject: ProjectBreakdown[];
+  /** Meeting-specific rollup — planned vs impromptu, audience mix,
+   *  top meetings by time. */
+  meetings: MeetingBreakdown;
   /** Paragraphs for the "AI Summary" block. Deterministic today. */
   narrative: string[];
   completed: string[];
@@ -267,6 +329,9 @@ export interface PerformanceReviewData {
   allocation: LegendEntry[];
   /** Per-project rollup, sorted by totalMs desc. */
   byProject: ProjectBreakdown[];
+  /** Meeting-specific rollup over the review window. Same shape as the
+   *  daily breakdown, just summed across more days. */
+  meetings: MeetingBreakdown;
   topAccomplishments: Array<{ name: string; detail: string; barClass: string; time: string }>;
   keyAchievements: Array<{ name: string; detail: string; barClass: string }>;
   growthAreas: Array<{ name: string; detail: string; barClass: string }>;
@@ -333,6 +398,15 @@ export interface BuildInputArgs {
       project?: string;
       tags?: string[];
       sessionState?: string;
+      /** Session type. Omitted on legacy archived summaries — the
+       *  generator treats `undefined` as 'work' to preserve behavior. */
+      kind?: PanelKind;
+      /** Meeting-only: planned vs impromptu. */
+      meetingType?: MeetingType;
+      /** Meeting-only: who the meeting is with. */
+      audience?: MeetingAudience;
+      /** Meeting-only: the purpose/topic string. */
+      topic?: string;
     }
   >;
   panelEdits: Record<
@@ -414,7 +488,12 @@ export function buildSummaryInput(args: BuildInputArgs): SummaryInput {
       const trackedMs = hasRuns
         ? (accumFromRuns[id] ?? 0)
         : (args.panelAccum[id] ?? 0);
-      const isMeeting = draft.workType === 'Meeting';
+      const kind: PanelKind = draft.kind ?? 'work';
+      // Back-compat: the legacy 'Meeting' work-type chip used to be the
+      // only signal. Honor it so summaries generated before the meeting
+      // refactor still register meetings correctly, but prefer the new
+      // Panel-kind field when present.
+      const isMeeting = kind === 'meeting' || draft.workType === 'Meeting';
       const entry: WorkstreamEntry = {
         panelId: id,
         name: meta.name,
@@ -427,7 +506,11 @@ export function buildSummaryInput(args: BuildInputArgs): SummaryInput {
         tags: draft.tags ?? [],
         sessionState: draft.sessionState,
         trackedMs,
+        kind,
         isMeeting,
+        meetingType: draft.meetingType,
+        audience: draft.audience,
+        topic: draft.topic,
         included: edits.included,
         outcome: edits.outcome,
         followUp: edits.followUp,
@@ -560,6 +643,96 @@ function computeProjectBreakdowns(
 }
 
 // ============================================================
+// Meeting breakdown — shared by every generator
+// ============================================================
+
+const AUDIENCE_LABELS: Record<MeetingAudience, string> = {
+  internal: 'Internal',
+  client: 'Client',
+  leadership: 'Leadership',
+  vendor: 'Vendor / Partner',
+};
+
+/** Roll meeting workstreams up into a single MeetingBreakdown block.
+ *  Meetings are a first-class reporting dimension — even when a user
+ *  has zero meeting time, the renderer can check `meetingCount === 0`
+ *  and short-circuit. Counts are per-session (one meeting panel =
+ *  one session) rather than per-run, so a meeting that got paused
+ *  and resumed still counts once. */
+function computeMeetingBreakdown(
+  included: WorkstreamEntry[],
+  totalMs: number,
+): MeetingBreakdown {
+  const meetings = included.filter(w => w.isMeeting);
+  const meetingMs = meetings.reduce((sum, w) => sum + w.trackedMs, 0);
+  const focusMs = included.filter(w => !w.isMeeting).reduce((sum, w) => sum + w.trackedMs, 0);
+
+  const planned = meetings.filter(w => w.meetingType === 'planned');
+  const impromptu = meetings.filter(w => w.meetingType === 'impromptu');
+
+  // Audience rollup — only surface buckets that actually have data.
+  const audienceMap = new Map<MeetingAudience, { count: number; totalMs: number }>();
+  for (const w of meetings) {
+    if (!w.audience) continue;
+    const entry = audienceMap.get(w.audience);
+    if (entry) {
+      entry.count += 1;
+      entry.totalMs += w.trackedMs;
+    } else {
+      audienceMap.set(w.audience, { count: 1, totalMs: w.trackedMs });
+    }
+  }
+  const byAudience = Array.from(audienceMap.entries())
+    .map(([audience, v]) => ({
+      audience,
+      label: AUDIENCE_LABELS[audience],
+      count: v.count,
+      totalMs: v.totalMs,
+      pct: meetingMs > 0 ? Math.round((v.totalMs / meetingMs) * 100) : 0,
+    }))
+    .sort((a, b) => b.totalMs - a.totalMs);
+
+  // Top meetings by time spent, limited so the UI block stays compact.
+  const topMeetings = meetings
+    .slice()
+    .sort((a, b) => b.trackedMs - a.trackedMs)
+    .slice(0, 5)
+    .map(w => ({
+      panelId: w.panelId,
+      name: w.name,
+      barClass: w.barClass,
+      colorHex: w.colorHex,
+      detail:
+        w.topic?.trim() ||
+        w.focusNote?.trim() ||
+        meetingDescriptorFor(w) ||
+        w.project ||
+        '—',
+      time: formatHM(w.trackedMs),
+      meetingType: w.meetingType,
+      audience: w.audience,
+    }));
+
+  const ratio =
+    focusMs > 0 && meetingMs > 0
+      ? `${(focusMs / meetingMs).toFixed(1)}:1`
+      : '—';
+
+  return {
+    meetingCount: meetings.length,
+    meetingMs,
+    meetingPct: totalMs > 0 ? Math.round((meetingMs / totalMs) * 100) : 0,
+    focusToMeetingRatio: ratio,
+    plannedCount: planned.length,
+    plannedMs: planned.reduce((sum, w) => sum + w.trackedMs, 0),
+    impromptuCount: impromptu.length,
+    impromptuMs: impromptu.reduce((sum, w) => sum + w.trackedMs, 0),
+    byAudience,
+    topMeetings,
+  };
+}
+
+// ============================================================
 // Generator: Daily Summary
 // ============================================================
 
@@ -634,6 +807,10 @@ export function generateDailySummary(input: SummaryInput): DailySummaryData {
     .filter(w => w.outcome === 'blocked')
     .map(w => (w.blocker.trim() ? `${w.name}: ${w.blocker.trim()}` : `${w.name} (no detail captured)`));
 
+  // Compute the meeting breakdown up-front so both the narrative and
+  // the structured `meetings` block pull from the same numbers.
+  const meetings = computeMeetingBreakdown(included, totalMs);
+
   // ---- Narrative ----
   const opening = openingClause(audience, focusMs > 0);
   const headline =
@@ -660,6 +837,29 @@ export function generateDailySummary(input: SummaryInput): DailySummaryData {
   }
 
   if (style === 'detailed') {
+    // Meeting-specific sentence: planned vs impromptu + audience mix.
+    // Only emits when there's actually meeting time to describe so
+    // a meeting-free day doesn't gain a dead line.
+    if (meetings.meetingCount > 0) {
+      const bits: string[] = [];
+      if (meetings.plannedCount > 0 || meetings.impromptuCount > 0) {
+        const halves: string[] = [];
+        if (meetings.plannedCount > 0) {
+          halves.push(`${pluralize(meetings.plannedCount, 'planned meeting')} (${formatHM(meetings.plannedMs)})`);
+        }
+        if (meetings.impromptuCount > 0) {
+          halves.push(`${pluralize(meetings.impromptuCount, 'impromptu meeting')} (${formatHM(meetings.impromptuMs)})`);
+        }
+        bits.push(halves.join(' and '));
+      }
+      if (meetings.byAudience.length > 0) {
+        const top = meetings.byAudience[0];
+        bits.push(`most ${top.label.toLowerCase()}-facing (${top.pct}%)`);
+      }
+      if (bits.length > 0) {
+        narrative.push(`Meetings: ${bits.join('; ')}.`);
+      }
+    }
     const abandoned = included.filter(w => w.outcome === 'abandoned');
     if (abandoned.length > 0) {
       const effort = abandoned.filter(w => w.unrealizedEffort === true).length;
@@ -698,6 +898,7 @@ export function generateDailySummary(input: SummaryInput): DailySummaryData {
     legend,
     timeline,
     byProject,
+    meetings,
     narrative,
     completed,
     followUps,
@@ -796,6 +997,20 @@ function buildTimelineFromRuns(
         startLabel: formatClockLabel(b.startedAt),
       };
     }
+    // Meetings lead with their topic field; work panels lead with their
+    // focus note. This way the timeline rail reads naturally whether the
+    // row is "Client Call — Q2 budget review" or "Website Refresh — fix
+    // hero CTA bug".
+    const description = w.isMeeting
+      ? (w.topic?.trim() ||
+          w.focusNote?.trim() ||
+          w.notes?.trim() ||
+          [w.project, meetingDescriptorFor(w)].filter(Boolean).join(' → ') ||
+          '')
+      : (w.focusNote?.trim() ||
+          w.notes?.trim() ||
+          [w.project, w.workType].filter(Boolean).join(' → ') ||
+          '');
     return {
       id: `tl_${i}_${b.startedAt}`,
       panelId: b.panelId,
@@ -804,11 +1019,7 @@ function buildTimelineFromRuns(
       barClass: w.barClass,
       colorHex: w.colorHex,
       duration: formatHM(duration),
-      description:
-        w.focusNote?.trim() ||
-        w.notes?.trim() ||
-        [w.project, w.workType].filter(Boolean).join(' → ') ||
-        '',
+      description,
       workType: w.workType,
       isMeeting: w.isMeeting,
       startedAt: b.startedAt,
@@ -816,6 +1027,20 @@ function buildTimelineFromRuns(
       startLabel: formatClockLabel(b.startedAt),
     };
   });
+}
+
+/** Human-readable meeting descriptor built from type + audience, used as
+ *  a last-resort description fallback for meeting rows. "Planned · Client"
+ *  communicates more than an empty cell when the user hasn't written a topic. */
+function meetingDescriptorFor(w: WorkstreamEntry): string {
+  const bits: string[] = [];
+  if (w.meetingType === 'planned') bits.push('Planned');
+  else if (w.meetingType === 'impromptu') bits.push('Impromptu');
+  if (w.audience === 'internal') bits.push('Internal');
+  else if (w.audience === 'client') bits.push('Client');
+  else if (w.audience === 'leadership') bits.push('Leadership');
+  else if (w.audience === 'vendor') bits.push('Vendor / Partner');
+  return bits.join(' · ');
 }
 
 function computeOvertime(workedMs: number, thresholdMs: number): OvertimeInfo {
@@ -927,6 +1152,10 @@ export function generatePerformanceReview(input: SummaryInput): PerformanceRevie
     });
   }
 
+  // Compute the meeting breakdown up-front so the narrative can reach
+  // into planned/impromptu counts without re-walking the workstreams.
+  const meetings = computeMeetingBreakdown(included, totalMs);
+
   // ---- Narrative ----
   const opening = openingClause(audience, focusMs > 0);
   const rangeLabel = dateRange.label;
@@ -948,11 +1177,26 @@ export function generatePerformanceReview(input: SummaryInput): PerformanceRevie
 
   if (style === 'detailed') {
     if (meetingMs > 0) {
-      const ratio = focusMs > 0 ? (focusMs / meetingMs).toFixed(1) : '—';
       narrative.push(
         `Focus-to-meeting split: ${formatHM(focusMs)} focus / ${formatHM(meetingMs)} meetings` +
-          (focusMs > 0 ? ` (ratio ${ratio}:1).` : '.'),
+          (meetings.focusToMeetingRatio !== '—' ? ` (ratio ${meetings.focusToMeetingRatio}).` : '.'),
       );
+      // Planned vs impromptu mix — surfaces whether the window was
+      // dominated by scheduled meetings or walked-up interruptions.
+      if (meetings.plannedCount > 0 || meetings.impromptuCount > 0) {
+        const halves: string[] = [];
+        if (meetings.plannedCount > 0) {
+          halves.push(`${pluralize(meetings.plannedCount, 'planned meeting')} (${formatHM(meetings.plannedMs)})`);
+        }
+        if (meetings.impromptuCount > 0) {
+          halves.push(`${pluralize(meetings.impromptuCount, 'impromptu meeting')} (${formatHM(meetings.impromptuMs)})`);
+        }
+        narrative.push(`Meeting mix: ${halves.join(' and ')}.`);
+      }
+      if (meetings.byAudience.length > 0) {
+        const parts = meetings.byAudience.map(a => `${a.label} (${a.pct}%)`);
+        narrative.push(`Audience breakdown: ${joinList(parts)}.`);
+      }
     }
     if (blocked.length > 0 || followUp.length > 0) {
       const bits: string[] = [];
@@ -981,6 +1225,7 @@ export function generatePerformanceReview(input: SummaryInput): PerformanceRevie
     kpis,
     allocation,
     byProject,
+    meetings,
     topAccomplishments,
     keyAchievements,
     growthAreas,

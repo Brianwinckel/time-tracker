@@ -42,6 +42,7 @@ import {
   saveRuns,
   makePanel,
   makePanelFromType,
+  makeMeetingPanel,
   makeRun,
   BREAK_PANEL_ID,
   LUNCH_PANEL_ID,
@@ -407,6 +408,27 @@ export const TaskPanelsApp: React.FC<TaskPanelsAppProps> = ({ authUser }) => {
     return instance;
   }, [panelCatalog, appendRun, flushBreakRun]);
 
+  // Meetings skip the catalog (they're one-shot, not templates) and
+  // go straight to a Panel instance with `kind: 'meeting'`. Same
+  // bank-and-switch semantics as createPanelInstance so starting a
+  // meeting cleanly stops whatever the user was tracking before.
+  const createMeetingInstance = useCallback(
+    (input: { name?: string; colorId?: string } = {}): Panel => {
+      const instance = makeMeetingPanel(input);
+      setPanels(prev => [...prev, instance]);
+      const now = Date.now();
+      const prev = activeTimerRef.current;
+      flushBreakRun(activeBreakRef.current, now);
+      setActiveBreak(null);
+      if (prev) {
+        appendRun(prev.panelId, prev.startedAt, now);
+      }
+      setActiveTimer({ panelId: instance.id, startedAt: now });
+      return instance;
+    },
+    [appendRun, flushBreakRun],
+  );
+
   const updatePanel = useCallback((id: string, patch: Partial<Panel>) => {
     setPanels(prev => prev.map(p => (p.id === id ? { ...p, ...patch } : p)));
   }, []);
@@ -545,6 +567,7 @@ export const TaskPanelsApp: React.FC<TaskPanelsAppProps> = ({ authUser }) => {
     removePanel,
     panels,
     createPanelInstance,
+    createMeetingInstance,
     updatePanel,
     deletePanelInstance,
     endMyDay,
