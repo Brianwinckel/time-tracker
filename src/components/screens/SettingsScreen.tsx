@@ -16,7 +16,7 @@
 // this phase is Projects, the new first-class workflow object.
 // ============================================================
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNav } from '../../lib/previewNav';
 import type { PreviewScreen } from '../../lib/previewNav';
 import { PANEL_COLOR_OPTIONS, colorOptionFor } from '../../lib/panelCatalog';
@@ -126,7 +126,7 @@ const buildSections = (handlers: SectionHandlers): SectionDef[] => [
     items: [
       { label: 'Appearance', soon: true },
       { label: 'Default Day View', soon: true },
-      { label: 'Break & Lunch Defaults', soon: true },
+      { label: 'Break & Lunch Defaults', screen: 'settings-breaks' },
     ],
   },
   {
@@ -1083,6 +1083,132 @@ const SettingsAdvancedLabels: React.FC = () => (
 );
 
 // ============================================================
+// Break & Lunch Defaults — Preferences sub-screen
+// ------------------------------------------------------------
+// Lets the user pick the default countdown length for Break and
+// Lunch. Durations are stored as milliseconds in NavContext but
+// the UI operates in whole minutes — feels much better to type
+// "20" than "1200000". We store on every change (no Save button)
+// so the next tap of Break / Lunch on Home uses the new default
+// immediately; existing running countdowns are NOT retroactively
+// shortened (that lives in startBreak's closure at start time).
+// ============================================================
+
+// Hard bounds match the clamp in lib/breakDefaults.ts. Duplicated
+// here so the input's min/max attributes give immediate feedback
+// on the up/down arrows without needing a JS round trip.
+const BREAK_MIN_MINUTES = 1;
+const BREAK_MAX_MINUTES = 8 * 60; // 8 hours — a full workday
+
+interface BreakRowProps {
+  label: string;
+  description: string;
+  minutes: number;
+  accentClass: string;
+  onChange: (minutes: number) => void;
+}
+
+const BreakRow: React.FC<BreakRowProps> = ({
+  label,
+  description,
+  minutes,
+  accentClass,
+  onChange,
+}) => {
+  // Local string state lets the user clear the field mid-edit
+  // without bouncing back to "1" on every keystroke. We only
+  // commit the parsed value when it's a valid number.
+  const [draft, setDraft] = useState<string>(String(minutes));
+  // Keep local draft in sync if the upstream value changes (e.g.
+  // another device syncs, or the clamp snapped a too-big value).
+  useEffect(() => {
+    setDraft(String(minutes));
+  }, [minutes]);
+
+  const commit = (value: string) => {
+    const n = parseInt(value, 10);
+    if (Number.isFinite(n)) {
+      const clamped = Math.max(BREAK_MIN_MINUTES, Math.min(BREAK_MAX_MINUTES, n));
+      onChange(clamped);
+      setDraft(String(clamped));
+    } else {
+      // Empty / invalid on blur → snap back to the committed value.
+      setDraft(String(minutes));
+    }
+  };
+
+  return (
+    <div className="px-5 py-4 flex items-center gap-4 border-b border-slate-100 last:border-b-0">
+      <div className={`w-10 h-10 rounded-xl ${accentClass} flex items-center justify-center shrink-0`}>
+        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="10" />
+          <polyline points="12 6 12 12 16 14" />
+        </svg>
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold text-slate-900">{label}</p>
+        <p className="text-xs text-slate-500 truncate">{description}</p>
+      </div>
+      <div className="flex items-center gap-2 shrink-0">
+        <input
+          type="number"
+          inputMode="numeric"
+          min={BREAK_MIN_MINUTES}
+          max={BREAK_MAX_MINUTES}
+          step={1}
+          value={draft}
+          onChange={e => setDraft(e.target.value)}
+          onBlur={e => commit(e.target.value)}
+          onKeyDown={e => {
+            if (e.key === 'Enter') {
+              (e.target as HTMLInputElement).blur();
+            }
+          }}
+          className="w-16 px-2 py-1.5 border border-slate-200 rounded-lg text-sm text-slate-900 text-right tabular-nums focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
+          aria-label={`${label} duration in minutes`}
+        />
+        <span className="text-xs font-medium text-slate-500">min</span>
+      </div>
+    </div>
+  );
+};
+
+const SettingsBreakDefaults: React.FC = () => {
+  const { breakDurationsMs, setBreakDurationMs } = useNav();
+  const breakMin = Math.round(breakDurationsMs.break / 60000);
+  const lunchMin = Math.round(breakDurationsMs.lunch / 60000);
+
+  return (
+    <SettingsShell title="Break & Lunch Defaults" crumb={{ label: 'Preferences', screen: 'settings' }}>
+      <p className="text-sm text-slate-500 mb-6">
+        How long the Break and Lunch countdowns run when you tap them on Home.
+        Changing a value saves immediately — the next time you tap Break or Lunch,
+        the new countdown starts.
+      </p>
+      <section className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+        <BreakRow
+          label="Break"
+          description="Short pause — stretch, refill coffee, clear your head."
+          minutes={breakMin}
+          accentClass="bg-amber-100 text-amber-700"
+          onChange={min => setBreakDurationMs('break', min * 60 * 1000)}
+        />
+        <BreakRow
+          label="Lunch"
+          description="Longer mid-day break — the full meal."
+          minutes={lunchMin}
+          accentClass="bg-rose-100 text-rose-700"
+          onChange={min => setBreakDurationMs('lunch', min * 60 * 1000)}
+        />
+      </section>
+      <p className="mt-4 text-[11px] text-slate-400">
+        Range: {BREAK_MIN_MINUTES}–{BREAK_MAX_MINUTES} minutes. Values outside this range are clamped.
+      </p>
+    </SettingsShell>
+  );
+};
+
+// ============================================================
 // Router
 // ============================================================
 
@@ -1098,6 +1224,8 @@ export const SettingsScreen: React.FC = () => {
       return <SettingsPanels />;
     case 'settings-advanced-labels':
       return <SettingsAdvancedLabels />;
+    case 'settings-breaks':
+      return <SettingsBreakDefaults />;
     case 'settings':
     default:
       return <SettingsHome />;

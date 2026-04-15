@@ -63,6 +63,12 @@ import {
   type AuthProvider,
   type UserProfile,
 } from '../lib/profile';
+import {
+  loadBreakDurations,
+  saveBreakDurations,
+  clampBreakMs,
+  type BreakDurationsMs,
+} from '../lib/breakDefaults';
 
 /** Minimal identity shape the shell cares about. App.tsx pulls this
  *  from Supabase's `user` object; preview.tsx leaves it undefined. */
@@ -81,9 +87,10 @@ interface TaskPanelsAppProps {
   authUser?: TaskPanelsAuthUser | null;
 }
 
-// ---- Settings defaults ----
-const DEFAULT_BREAK_MS = 15 * 60 * 1000; // 15 minutes
-const DEFAULT_LUNCH_MS = 60 * 60 * 1000; // 60 minutes
+// Break/lunch defaults now live in lib/breakDefaults.ts so the user
+// can edit them from Settings → Preferences. This file used to have
+// DEFAULT_BREAK_MS / DEFAULT_LUNCH_MS constants — removed in favor of
+// the persisted state below.
 
 const VALID_SCREENS: PreviewScreen[] = [
   'onboarding',
@@ -100,6 +107,7 @@ const VALID_SCREENS: PreviewScreen[] = [
   'settings-projects',
   'settings-panels',
   'settings-advanced-labels',
+  'settings-breaks',
 ];
 
 /** Determine initial screen: if no onboarding result exists and no explicit
@@ -261,10 +269,19 @@ export const TaskPanelsApp: React.FC<TaskPanelsAppProps> = ({ authUser }) => {
     }
   }, [appendRun]);
 
-  const breakDurationsMs = {
-    break: DEFAULT_BREAK_MS,
-    lunch: DEFAULT_LUNCH_MS,
-  };
+  // Persisted user preference — edited from Settings → Break & Lunch
+  // Defaults. Loaded synchronously from localStorage so the first
+  // render of Home already shows the user's chosen countdowns; saved
+  // on every change via the effect below.
+  const [breakDurationsMs, setBreakDurationsMsState] =
+    useState<BreakDurationsMs>(() => loadBreakDurations());
+  useEffect(() => {
+    saveBreakDurations(breakDurationsMs);
+  }, [breakDurationsMs]);
+
+  const setBreakDurationMs = useCallback((kind: BreakKind, ms: number) => {
+    setBreakDurationsMsState(prev => ({ ...prev, [kind]: clampBreakMs(ms) }));
+  }, []);
 
   // ---- Timer actions ----
 
@@ -336,11 +353,11 @@ export const TaskPanelsApp: React.FC<TaskPanelsAppProps> = ({ authUser }) => {
       return {
         kind,
         startedAt: now,
-        durationMs: kind === 'break' ? DEFAULT_BREAK_MS : DEFAULT_LUNCH_MS,
+        durationMs: breakDurationsMs[kind],
         resumePanelId: carriedResume,
       };
     });
-  }, [appendRun, flushBreakRun]);
+  }, [appendRun, flushBreakRun, breakDurationsMs]);
 
   const cancelBreak = useCallback(() => {
     setActiveBreak(prev => {
@@ -602,6 +619,7 @@ export const TaskPanelsApp: React.FC<TaskPanelsAppProps> = ({ authUser }) => {
     setPanelElapsed,
     activeBreak,
     breakDurationsMs,
+    setBreakDurationMs,
     startBreak,
     cancelBreak,
     breakAccum,

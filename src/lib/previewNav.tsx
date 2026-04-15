@@ -26,7 +26,8 @@ export type PreviewScreen =
   | 'settings'
   | 'settings-projects'
   | 'settings-panels'
-  | 'settings-advanced-labels';
+  | 'settings-advanced-labels'
+  | 'settings-breaks';
 
 export type NavigateOptions = {
   panelId?: string;
@@ -98,6 +99,10 @@ type NavContextValue = {
   // ---- Break / Lunch countdown ----
   activeBreak: ActiveBreak;
   breakDurationsMs: Record<BreakKind, number>;
+  /** Persist a new default countdown for one break kind. Takes effect
+   *  on the next `startBreak` — existing running breaks are not
+   *  retroactively shortened. Value is clamped into [1m, 8h]. */
+  setBreakDurationMs: (kind: BreakKind, ms: number) => void;
   startBreak: (kind: BreakKind) => void;
   cancelBreak: () => void;
   breakAccum: Record<BreakKind, number>;
@@ -189,6 +194,7 @@ export const useNav = (): NavContextValue => {
       setPanelElapsed: noop,
       activeBreak: null,
       breakDurationsMs: { break: 15 * 60 * 1000, lunch: 60 * 60 * 1000 },
+      setBreakDurationMs: noop,
       startBreak: noop,
       cancelBreak: noop,
       breakAccum: { break: 0, lunch: 0 },
