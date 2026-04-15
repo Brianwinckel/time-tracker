@@ -140,9 +140,7 @@ const buildSections = (handlers: SectionHandlers): SectionDef[] => [
       </svg>
     ),
     items: [
-      { label: 'Browser Notifications', soon: true },
-      { label: 'Daily Reminder', soon: true },
-      { label: 'End-of-Day Prompt', soon: true },
+      { label: 'Notifications', screen: 'settings-notifications' },
     ],
   },
   {
@@ -1083,6 +1081,247 @@ const SettingsAdvancedLabels: React.FC = () => (
 );
 
 // ============================================================
+// Notifications — all notification toggles in one screen
+// ------------------------------------------------------------
+// Master toggle gates everything: if "Enable Notifications" is
+// off, none of the sub-features fire. Toggling it on calls
+// Notification.requestPermission() and persists the result.
+// ============================================================
+
+const SettingsNotifications: React.FC = () => {
+  const { preferences, setPreference } = useNav();
+  const [permissionState, setPermissionState] = useState<NotificationPermission>(
+    typeof Notification !== 'undefined' ? Notification.permission : 'default',
+  );
+
+  const handleMasterToggle = async () => {
+    if (preferences.notificationsEnabled) {
+      // Turning OFF — just flip the preference.
+      setPreference('notificationsEnabled', false);
+      return;
+    }
+    // Turning ON — request permission first.
+    if (typeof Notification === 'undefined') return;
+    if (Notification.permission === 'granted') {
+      setPreference('notificationsEnabled', true);
+      setPermissionState('granted');
+      return;
+    }
+    if (Notification.permission === 'denied') {
+      setPermissionState('denied');
+      return;
+    }
+    const result = await Notification.requestPermission();
+    setPermissionState(result);
+    if (result === 'granted') {
+      setPreference('notificationsEnabled', true);
+    }
+  };
+
+  const enabled = preferences.notificationsEnabled && permissionState === 'granted';
+
+  return (
+    <SettingsShell title="Notifications" crumb={{ label: 'Settings', screen: 'settings' }}>
+      <p className="text-sm text-slate-500 mb-6">
+        When and how TaskPanels nudges you throughout the day.
+      </p>
+
+      {/* ===== Master Toggle ===== */}
+      <section className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+        <div className="px-5 py-4 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                <path d="M13.73 21a2 2 0 01-3.46 0" />
+              </svg>
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-slate-900">Enable Notifications</p>
+              <p className="text-xs text-slate-500">
+                {permissionState === 'denied'
+                  ? 'Blocked by your browser — open browser settings to allow.'
+                  : preferences.notificationsEnabled
+                    ? 'Notifications are active.'
+                    : 'Tap to enable browser notifications.'}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={handleMasterToggle}
+            className={`relative w-11 h-6 rounded-full transition-colors shrink-0 ${
+              enabled ? 'bg-blue-500' : 'bg-slate-300'
+            }`}
+            role="switch"
+            aria-checked={enabled}
+            aria-label="Enable notifications"
+          >
+            <span
+              className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
+                enabled ? 'translate-x-5' : 'translate-x-0'
+              }`}
+            />
+          </button>
+        </div>
+        {permissionState === 'denied' && (
+          <div className="px-5 pb-4 -mt-1">
+            <p className="text-[11px] text-rose-500">
+              Notifications are blocked at the browser level. Go to your browser or
+              device settings → TaskPanels → allow notifications, then come back and toggle this on.
+            </p>
+          </div>
+        )}
+      </section>
+
+      {/* ===== Sub-features (gated by master toggle) ===== */}
+      <div className={`mt-4 space-y-4 transition-opacity ${enabled ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
+        {/* Daily Reminder */}
+        <section className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+          <div className="px-5 py-4 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="5" />
+                  <line x1="12" y1="1" x2="12" y2="3" />
+                  <line x1="12" y1="21" x2="12" y2="23" />
+                  <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+                  <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+                  <line x1="1" y1="12" x2="3" y2="12" />
+                  <line x1="21" y1="12" x2="23" y2="12" />
+                  <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+                  <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+                </svg>
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-slate-900">Daily Reminder</p>
+                <p className="text-xs text-slate-500">Nudge to start tracking if nothing is running.</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setPreference('dailyReminderEnabled', !preferences.dailyReminderEnabled)}
+              className={`relative w-11 h-6 rounded-full transition-colors shrink-0 ${
+                preferences.dailyReminderEnabled ? 'bg-blue-500' : 'bg-slate-300'
+              }`}
+              role="switch"
+              aria-checked={preferences.dailyReminderEnabled}
+            >
+              <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
+                preferences.dailyReminderEnabled ? 'translate-x-5' : 'translate-x-0'
+              }`} />
+            </button>
+          </div>
+          {preferences.dailyReminderEnabled && (
+            <div className="px-5 pb-4 -mt-1 flex items-center gap-3">
+              <span className="text-xs text-slate-500">Remind at</span>
+              <input
+                type="time"
+                value={preferences.dailyReminderTime}
+                onChange={e => setPreference('dailyReminderTime', e.target.value)}
+                className="px-2 py-1 border border-slate-200 rounded-lg text-sm text-slate-900 tabular-nums focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
+              />
+            </div>
+          )}
+        </section>
+
+        {/* End-of-Day Prompt */}
+        <section className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+          <div className="px-5 py-4 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center shrink-0">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
+                </svg>
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-slate-900">End-of-Day Prompt</p>
+                <p className="text-xs text-slate-500">Reminder to generate your daily summary.</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setPreference('endOfDayEnabled', !preferences.endOfDayEnabled)}
+              className={`relative w-11 h-6 rounded-full transition-colors shrink-0 ${
+                preferences.endOfDayEnabled ? 'bg-blue-500' : 'bg-slate-300'
+              }`}
+              role="switch"
+              aria-checked={preferences.endOfDayEnabled}
+            >
+              <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
+                preferences.endOfDayEnabled ? 'translate-x-5' : 'translate-x-0'
+              }`} />
+            </button>
+          </div>
+          {preferences.endOfDayEnabled && (
+            <div className="px-5 pb-4 -mt-1 flex items-center gap-3">
+              <span className="text-xs text-slate-500">Prompt at</span>
+              <input
+                type="time"
+                value={preferences.endOfDayTime}
+                onChange={e => setPreference('endOfDayTime', e.target.value)}
+                className="px-2 py-1 border border-slate-200 rounded-lg text-sm text-slate-900 tabular-nums focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
+              />
+            </div>
+          )}
+        </section>
+
+        {/* Idle Warning */}
+        <section className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+          <div className="px-5 py-4 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-10 h-10 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center shrink-0">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10" />
+                  <polyline points="12 6 12 12 16 14" />
+                </svg>
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-slate-900">Idle Warning</p>
+                <p className="text-xs text-slate-500">Alert when the same panel has been running too long.</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setPreference('idleWarningEnabled', !preferences.idleWarningEnabled)}
+              className={`relative w-11 h-6 rounded-full transition-colors shrink-0 ${
+                preferences.idleWarningEnabled ? 'bg-blue-500' : 'bg-slate-300'
+              }`}
+              role="switch"
+              aria-checked={preferences.idleWarningEnabled}
+            >
+              <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
+                preferences.idleWarningEnabled ? 'translate-x-5' : 'translate-x-0'
+              }`} />
+            </button>
+          </div>
+          {preferences.idleWarningEnabled && (
+            <div className="px-5 pb-4 -mt-1 flex items-center gap-3">
+              <span className="text-xs text-slate-500">Warn after</span>
+              <input
+                type="number"
+                inputMode="numeric"
+                min={1}
+                max={480}
+                value={preferences.idleWarningMinutes}
+                onChange={e => {
+                  const n = parseInt(e.target.value, 10);
+                  if (Number.isFinite(n) && n >= 1) {
+                    setPreference('idleWarningMinutes', Math.min(480, n));
+                  }
+                }}
+                className="w-16 px-2 py-1 border border-slate-200 rounded-lg text-sm text-slate-900 text-right tabular-nums focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
+              />
+              <span className="text-xs text-slate-500">minutes</span>
+            </div>
+          )}
+        </section>
+      </div>
+    </SettingsShell>
+  );
+};
+
+// ============================================================
 // Appearance — Preferences sub-screen
 // ============================================================
 
@@ -1395,6 +1634,8 @@ export const SettingsScreen: React.FC = () => {
       return <SettingsAppearance />;
     case 'settings-day-view':
       return <SettingsDefaultView />;
+    case 'settings-notifications':
+      return <SettingsNotifications />;
     case 'settings':
     default:
       return <SettingsHome />;

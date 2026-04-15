@@ -31,7 +31,8 @@ export type PreviewScreen =
   | 'settings-advanced-labels'
   | 'settings-breaks'
   | 'settings-appearance'
-  | 'settings-day-view';
+  | 'settings-day-view'
+  | 'settings-notifications';
 
 export type NavigateOptions = {
   panelId?: string;

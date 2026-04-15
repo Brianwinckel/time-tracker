@@ -69,6 +69,7 @@ import {
   clampBreakMs,
   type BreakDurationsMs,
 } from '../lib/breakDefaults';
+import { useNotificationScheduler } from '../hooks/useNotificationScheduler';
 import {
   loadPreferences,
   savePreferences,
@@ -115,6 +116,7 @@ const VALID_SCREENS: PreviewScreen[] = [
   'settings-breaks',
   'settings-appearance',
   'settings-day-view',
+  'settings-notifications',
 ];
 
 /** Determine initial screen: if no onboarding result exists and no explicit
@@ -614,6 +616,11 @@ export const TaskPanelsApp: React.FC<TaskPanelsAppProps> = ({ authUser }) => {
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
   }, []);
+
+  // ---- Notification scheduler ----
+  // Fires local notifications for daily reminder, end-of-day prompt,
+  // and idle warnings based on the user's notification preferences.
+  useNotificationScheduler(preferences, activeTimer);
 
   const navValue = {
     screen,
