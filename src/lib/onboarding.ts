@@ -25,7 +25,7 @@ export const WORK_ROLES: WorkRole[] = [
   { id: 'engineering',  label: 'Engineering / Technical',    description: 'Code, architecture, debugging',     icon: 'code' },
   { id: 'operations',   label: 'Operations / Admin',        description: 'Process, coordination, tracking',   icon: 'cog' },
   { id: 'client',       label: 'Client / Consulting',       description: 'Delivery, reviews, presentations',  icon: 'briefcase' },
-  { id: 'general',      label: 'General Knowledge Work',    description: 'Research, writing, meetings',        icon: 'squares' },
+  { id: 'general',      label: 'General Knowledge Work',    description: 'Research, writing, deep focus',      icon: 'squares' },
 ];
 
 // ---- Starter Panel Packs ----
@@ -63,14 +63,11 @@ const STARTER_PACKS: Record<string, StarterPanel[]> = {
     // 🔵 Analytics & partnerships
     { name: 'Analytics & reporting',         colorId: 'blue' },
     { name: 'Influencer partnerships',       colorId: 'blue' },
-    // 🟣 Meetings & collaboration
-    { name: 'Meetings & standups',          colorId: 'purple' },
-    { name: '1:1s',                        colorId: 'purple' },
+    // 🟣 Collaboration & comms (meeting sessions live in the dedicated
+    // "Start a Meeting" flow — this bucket is for async collab only)
     { name: 'Email & Slack triage',         colorId: 'purple' },
-    { name: 'All-hands',                   colorId: 'purple' },
     { name: 'Cross-functional collab',       colorId: 'purple' },
     { name: 'Onboarding & training',        colorId: 'purple' },
-    { name: 'Informal chats',              colorId: 'purple' },
     // ⚪ Overhead (grey)
     { name: 'Calendar mgmt',               colorId: 'slate' },
     { name: 'Expenses',                    colorId: 'slate' },
@@ -86,7 +83,6 @@ const STARTER_PACKS: Record<string, StarterPanel[]> = {
     { name: 'Planning',       colorId: 'blue' },
     { name: 'Research',       colorId: 'teal' },
     { name: 'Review',         colorId: 'emerald' },
-    { name: 'Meetings',       colorId: 'amber' },
     { name: 'Writing',        colorId: 'orange' },
   ],
   design: [
@@ -94,7 +90,6 @@ const STARTER_PACKS: Record<string, StarterPanel[]> = {
     { name: 'Revisions',      colorId: 'orange' },
     { name: 'Research',       colorId: 'teal' },
     { name: 'Review',         colorId: 'emerald' },
-    { name: 'Meetings',       colorId: 'amber' },
     { name: 'Admin',          colorId: 'slate' },
   ],
   engineering: [
@@ -121,13 +116,10 @@ const STARTER_PACKS: Record<string, StarterPanel[]> = {
     { name: 'Testing & QA',                        colorId: 'emerald' },
     { name: 'Code reviews',                        colorId: 'emerald' },
     { name: 'Documentation',                       colorId: 'emerald' },
-    // 🔵 Collaboration & comms
+    // 🔵 Collaboration & comms (meeting sessions live in the dedicated
+    // "Start a Meeting" flow — this bucket is for async collab only)
     { name: 'Email & Slack triage',                colorId: 'blue' },
-    { name: 'Meetings & standups',                 colorId: 'blue' },
-    { name: '1:1s',                                colorId: 'blue' },
     { name: 'Cross-functional collab',             colorId: 'blue' },
-    { name: 'All-hands',                           colorId: 'blue' },
-    { name: 'Informal chats',                      colorId: 'blue' },
     // 🟣 Planning & growth
     { name: 'Project planning',                    colorId: 'purple' },
     { name: 'Training & certifications',           colorId: 'purple' },
@@ -139,7 +131,6 @@ const STARTER_PACKS: Record<string, StarterPanel[]> = {
     { name: 'Coordination',   colorId: 'blue' },
     { name: 'Admin',          colorId: 'slate' },
     { name: 'Planning',       colorId: 'purple' },
-    { name: 'Meetings',       colorId: 'amber' },
     { name: 'Review',         colorId: 'emerald' },
     { name: 'Writing',        colorId: 'orange' },
   ],
@@ -148,14 +139,12 @@ const STARTER_PACKS: Record<string, StarterPanel[]> = {
     { name: 'Review',         colorId: 'emerald' },
     { name: 'Strategy',       colorId: 'purple' },
     { name: 'Revisions',      colorId: 'orange' },
-    { name: 'Meetings',       colorId: 'amber' },
     { name: 'Admin',          colorId: 'slate' },
   ],
   general: [
     { name: 'Deep Work',      colorId: 'blue' },
     { name: 'Writing',        colorId: 'purple' },
     { name: 'Research',       colorId: 'teal' },
-    { name: 'Meetings',       colorId: 'amber' },
     { name: 'Review',         colorId: 'emerald' },
     { name: 'Admin',          colorId: 'slate' },
   ],
