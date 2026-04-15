@@ -305,6 +305,30 @@ export const TaskPanelsApp: React.FC<TaskPanelsAppProps> = ({ authUser }) => {
     savePreferences(preferences);
   }, [preferences]);
 
+  // One-time migration: map old free-text profile.defaultAudience to
+  // the typed preferences.defaultAudience enum. Runs on first mount
+  // only; clears the old string after migrating so it doesn't re-fire.
+  useEffect(() => {
+    const old = userProfile.defaultAudience?.trim().toLowerCase();
+    if (!old) return;
+    // Only migrate if the preference is still at default.
+    if (preferences.defaultAudience !== 'manager') return;
+    const MIGRATE_MAP: Record<string, AppPreferences['defaultAudience']> = {
+      manager: 'manager',
+      internal: 'team',
+      team: 'team',
+      client: 'client',
+      personal: 'personal',
+    };
+    const mapped = MIGRATE_MAP[old];
+    if (mapped && mapped !== 'manager') {
+      setPreferencesState(prev => ({ ...prev, defaultAudience: mapped }));
+    }
+    // Clear the legacy field so this doesn't re-fire.
+    updateProfile({ defaultAudience: '' });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const setPreference = useCallback(<K extends keyof AppPreferences>(key: K, value: AppPreferences[K]) => {
     setPreferencesState(prev => ({ ...prev, [key]: value }));
   }, []);
@@ -701,19 +725,26 @@ export const TaskPanelsApp: React.FC<TaskPanelsAppProps> = ({ authUser }) => {
   if (screen === 'onboarding') {
     return (
       <OnboardingScreen
-        onComplete={({ roleLabel, audienceLabel }) => {
+        onComplete={({ roleLabel, audience }) => {
           // Reload the catalog from localStorage (OnboardingScreen persisted it).
           setPanelCatalog(loadCatalog());
-          // Seed the user's profile with the role + audience they picked
-          // during onboarding so ProfileScreen isn't mysteriously empty
-          // and the daily-summary form pre-fills the right audience. We
-          // only write if the user hasn't already filled these fields
-          // themselves (e.g. re-onboarding later shouldn't clobber a
-          // manually-tuned role).
+          // Seed the user's profile with the role they picked during
+          // onboarding so ProfileScreen isn't mysteriously empty. Only
+          // write if the user hasn't already filled it (re-onboarding
+          // later shouldn't clobber a manually-tuned role).
           updateProfile({
             role: userProfile.role.trim() || roleLabel,
-            defaultAudience: userProfile.defaultAudience.trim() || audienceLabel,
           });
+          // Map the onboarding audience pick to the preferences enum.
+          // Onboarding uses 'internal' while preferences uses 'team'.
+          const AUDIENCE_MAP: Record<string, AppPreferences['defaultAudience']> = {
+            manager: 'manager',
+            internal: 'team',
+            client: 'client',
+            personal: 'personal',
+          };
+          const mapped = AUDIENCE_MAP[audience] ?? 'manager';
+          setPreference('defaultAudience', mapped);
           navigate('home');
         }}
       />

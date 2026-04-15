@@ -35,15 +35,13 @@ export const ProfileScreen: React.FC = () => {
   const dirty =
     draft.name !== userProfile.name ||
     draft.email !== userProfile.email ||
-    draft.role !== userProfile.role ||
-    draft.defaultAudience !== userProfile.defaultAudience;
+    draft.role !== userProfile.role;
 
   const handleSave = () => {
     updateProfile({
       name: draft.name.trim(),
       email: draft.email.trim(),
       role: draft.role.trim(),
-      defaultAudience: draft.defaultAudience.trim(),
     });
     setSavedFlash(true);
     window.setTimeout(() => setSavedFlash(false), 1800);
@@ -254,22 +252,6 @@ export const ProfileScreen: React.FC = () => {
                   placeholder="e.g. Product Designer, Founder, Engineering Manager"
                   className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
                 />
-              </label>
-              <label className="block md:col-span-2">
-                <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                  Default Summary Audience
-                  <span className="ml-1 text-slate-400 normal-case font-normal">(optional)</span>
-                </span>
-                <input
-                  type="text"
-                  value={draft.defaultAudience}
-                  onChange={e => setDraft({ ...draft, defaultAudience: e.target.value })}
-                  placeholder="e.g. Sarah, my manager"
-                  className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
-                />
-                <span className="mt-1 block text-[11px] text-slate-500">
-                  Pre-fills the audience field when you generate a daily summary.
-                </span>
               </label>
             </div>
 
