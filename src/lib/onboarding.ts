@@ -72,7 +72,6 @@ const STARTER_PACKS: Record<string, StarterPanel[]> = {
     { name: 'Onboarding & training',        colorId: 'purple' },
     { name: 'Informal chats',              colorId: 'purple' },
     // ⚪ Overhead (grey)
-    { name: 'Lunch & breaks',              colorId: 'slate' },
     { name: 'Calendar mgmt',               colorId: 'slate' },
     { name: 'Expenses',                    colorId: 'slate' },
     { name: 'Timesheets',                  colorId: 'slate' },
@@ -133,7 +132,6 @@ const STARTER_PACKS: Record<string, StarterPanel[]> = {
     { name: 'Project planning',                    colorId: 'purple' },
     { name: 'Training & certifications',           colorId: 'purple' },
     // ⚪ Overhead
-    { name: 'Lunch & breaks',                      colorId: 'slate' },
     { name: 'Context switching',                   colorId: 'slate' },
     { name: 'HR tasks',                            colorId: 'slate' },
   ],
