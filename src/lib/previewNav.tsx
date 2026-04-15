@@ -35,7 +35,9 @@ export type PreviewScreen =
   | 'settings-notifications'
   | 'settings-summary-defaults'
   | 'settings-email-template'
-  | 'settings-auto-email';
+  | 'settings-auto-email'
+  | 'settings-data-export'
+  | 'settings-reset';
 
 export type NavigateOptions = {
   panelId?: string;
@@ -68,6 +70,8 @@ type NavContextValue = {
   /** Remove a catalog entry. Live Panel instances of that type are left
    *  alone — they keep their snapshotted visuals. */
   removePanel: (id: string) => void;
+  /** Rename or recolor an existing catalog entry. */
+  updateCatalogPanel: (id: string, patch: { name?: string; colorId?: string }) => void;
 
   // ---- Live Panel instances on Home ----
   panels: Panel[];
@@ -179,6 +183,7 @@ export const useNav = (): NavContextValue => {
       panelCatalog: DEFAULT_PANELS,
       createPanel: () => null as unknown as MockPanel,
       removePanel: noop,
+      updateCatalogPanel: noop,
       panels: [],
       createPanelInstance: () => null,
       createPanelAndStart: () => null as unknown as Panel,

@@ -187,9 +187,9 @@ const buildSections = (handlers: SectionHandlers): SectionDef[] => [
       </svg>
     ),
     items: [
-      { label: 'Data Export', soon: true },
+      { label: 'Data Export', screen: 'settings-data-export' },
       { label: 'Integrations', soon: true },
-      { label: 'Reset Workspace', soon: true },
+      { label: 'Reset Workspace', screen: 'settings-reset' },
       {
         label: 'Debug',
         onClick: handlers.openDebug,
@@ -1024,27 +1024,189 @@ const SettingsProjects: React.FC = () => {
 // ============================================================
 
 const SettingsPanels: React.FC = () => {
-  const { panelCatalog } = useNav();
+  const { panelCatalog, updateCatalogPanel, removePanel, createPanel } = useNav();
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editColor, setEditColor] = useState('');
+  const [showNew, setShowNew] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newColor, setNewColor] = useState('blue');
+
+  const startEdit = (p: { id: string; name: string; color: string }) => {
+    setEditingId(p.id);
+    setEditName(p.name);
+    setEditColor(p.color);
+  };
+  const commitEdit = () => {
+    if (editingId) {
+      updateCatalogPanel(editingId, { name: editName, colorId: editColor });
+    }
+    setEditingId(null);
+  };
+  const handleDelete = (id: string, name: string) => {
+    if (window.confirm(`Delete "${name}" template? Live panels using it will keep working.`)) {
+      removePanel(id);
+      if (editingId === id) setEditingId(null);
+    }
+  };
+  const handleCreate = () => {
+    if (!newName.trim()) return;
+    createPanel({ name: newName.trim(), colorId: newColor });
+    setNewName('');
+    setNewColor('blue');
+    setShowNew(false);
+  };
+
   return (
-    <SettingsShell title="Panels" crumb={{ label: 'Workspace', screen: 'settings' }}>
+    <SettingsShell
+      title="Panels"
+      crumb={{ label: 'Workspace', screen: 'settings' }}
+      action={
+        <button
+          type="button"
+          onClick={() => setShowNew(true)}
+          className="text-xs font-semibold text-blue-600 hover:text-blue-800 px-3 py-1.5 rounded-lg border border-blue-200 bg-blue-50"
+        >
+          + New
+        </button>
+      }
+    >
       <p className="text-sm text-slate-500 mb-6">
-        Manage the panel templates the user picks from. Live panel instances on Home
-        keep working even if the source template is renamed or removed.
+        Manage the panel templates you pick from on Home. Renaming or removing a
+        template doesn't affect live panel instances already on your board.
       </p>
+
+      {/* New panel form */}
+      {showNew && (
+        <div className="mb-4 bg-white rounded-2xl border border-blue-200 p-4">
+          <div className="flex items-center gap-3 mb-3">
+            <input
+              type="text"
+              value={newName}
+              onChange={e => setNewName(e.target.value)}
+              placeholder="Panel name"
+              autoFocus
+              className="flex-1 text-sm text-slate-900 border border-slate-200 rounded-lg px-3 py-2 bg-white outline-none focus:border-blue-400"
+              onKeyDown={e => e.key === 'Enter' && handleCreate()}
+            />
+          </div>
+          <div className="flex items-center gap-2 mb-3 flex-wrap">
+            {PANEL_COLOR_OPTIONS.map(c => (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => setNewColor(c.id)}
+                className={`w-7 h-7 rounded-full border-2 transition-transform ${
+                  newColor === c.id ? 'border-slate-900 scale-110' : 'border-transparent'
+                }`}
+                style={{ backgroundColor: c.hex }}
+                title={c.label}
+              />
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={handleCreate}
+              disabled={!newName.trim()}
+              className="text-xs font-semibold text-white bg-blue-500 hover:bg-blue-600 disabled:opacity-40 px-4 py-2 rounded-lg"
+            >
+              Create
+            </button>
+            <button
+              type="button"
+              onClick={() => { setShowNew(false); setNewName(''); }}
+              className="text-xs font-semibold text-slate-500 hover:text-slate-700 px-4 py-2 rounded-lg"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Panel list */}
       <ul className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
         {panelCatalog.map(p => (
           <li
             key={p.id}
-            className="border-b border-slate-100 last:border-b-0 px-5 py-4 flex items-center gap-3"
+            className="border-b border-slate-100 last:border-b-0 px-4 py-3.5"
           >
-            <span className={`w-3 h-3 rounded-full ${p.barClass} shrink-0`} aria-hidden />
-            <span className="text-sm font-semibold text-slate-900 flex-1 truncate">{p.name}</span>
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-              Coming soon
-            </span>
+            {editingId === p.id ? (
+              /* Inline edit mode */
+              <div>
+                <div className="flex items-center gap-3 mb-3">
+                  <input
+                    type="text"
+                    value={editName}
+                    onChange={e => setEditName(e.target.value)}
+                    autoFocus
+                    className="flex-1 text-sm text-slate-900 border border-slate-200 rounded-lg px-3 py-2 bg-white outline-none focus:border-blue-400"
+                    onKeyDown={e => e.key === 'Enter' && commitEdit()}
+                  />
+                </div>
+                <div className="flex items-center gap-2 mb-3 flex-wrap">
+                  {PANEL_COLOR_OPTIONS.map(c => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => setEditColor(c.id)}
+                      className={`w-6 h-6 rounded-full border-2 transition-transform ${
+                        editColor === c.id ? 'border-slate-900 scale-110' : 'border-transparent'
+                      }`}
+                      style={{ backgroundColor: c.hex }}
+                      title={c.label}
+                    />
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={commitEdit}
+                    className="text-xs font-semibold text-white bg-blue-500 hover:bg-blue-600 px-3 py-1.5 rounded-lg"
+                  >
+                    Save
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditingId(null)}
+                    className="text-xs font-semibold text-slate-500 hover:text-slate-700 px-3 py-1.5 rounded-lg"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* Display mode */
+              <div className="flex items-center gap-3">
+                <span className={`w-3 h-3 rounded-full ${p.barClass} shrink-0`} aria-hidden />
+                <span className="text-sm font-semibold text-slate-900 flex-1 truncate">{p.name}</span>
+                <button
+                  type="button"
+                  onClick={() => startEdit(p)}
+                  className="text-xs text-slate-400 hover:text-blue-600 px-2 py-1"
+                >
+                  Edit
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDelete(p.id, p.name)}
+                  className="text-xs text-slate-400 hover:text-red-500 px-2 py-1"
+                >
+                  Delete
+                </button>
+              </div>
+            )}
           </li>
         ))}
+        {panelCatalog.length === 0 && (
+          <li className="px-5 py-6 text-center text-sm text-slate-400">
+            No panel templates yet. Tap "+ New" to create one.
+          </li>
+        )}
       </ul>
+      <p className="mt-4 text-[11px] text-slate-400">
+        {panelCatalog.length} template{panelCatalog.length !== 1 ? 's' : ''} in your catalog.
+      </p>
     </SettingsShell>
   );
 };
@@ -1957,6 +2119,212 @@ const SettingsAutoEmail: React.FC = () => {
 };
 
 // ============================================================
+// Settings: Data Export
+// ============================================================
+
+const EXPORT_STORAGE_KEYS = [
+  'taskpanels.panels.v1',
+  'taskpanels.catalog.v1',
+  'taskpanels.runs.v1',
+  'taskpanels.projects.v1',
+  'taskpanels.preferences.v1',
+  'taskpanels.profile.v1',
+  'taskpanels.breakDefaults.v1',
+  'taskpanels.summaryArchive.v1',
+  'taskpanels.notifFired.v1',
+  'taskpanels.onboarding.v1',
+];
+
+const SettingsDataExport: React.FC = () => {
+  const [exported, setExported] = useState(false);
+
+  const handleExport = () => {
+    try {
+      const data: Record<string, unknown> = {
+        exportedAt: new Date().toISOString(),
+        version: '1',
+      };
+      for (const key of EXPORT_STORAGE_KEYS) {
+        const raw = localStorage.getItem(key);
+        if (raw !== null) {
+          try { data[key] = JSON.parse(raw); }
+          catch { data[key] = raw; }
+        }
+      }
+      const json = JSON.stringify(data, null, 2);
+      const blob = new Blob([json], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `taskpanels-export-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      setExported(true);
+      setTimeout(() => setExported(false), 3000);
+    } catch {
+      window.alert('Export failed — please try again.');
+    }
+  };
+
+  const storageKeys = EXPORT_STORAGE_KEYS.filter(k => localStorage.getItem(k) !== null);
+  const totalBytes = storageKeys.reduce((sum, k) => sum + (localStorage.getItem(k)?.length ?? 0), 0);
+  const sizeLabel = totalBytes < 1024
+    ? `${totalBytes} B`
+    : totalBytes < 1048576
+      ? `${(totalBytes / 1024).toFixed(1)} KB`
+      : `${(totalBytes / 1048576).toFixed(1)} MB`;
+
+  return (
+    <SettingsShell title="Data Export" crumb={{ label: 'Advanced', screen: 'settings' }}>
+      <p className="text-sm text-slate-500 mb-6">
+        Download all your TaskPanels data as a single JSON file. This includes panel
+        templates, live panels, runs, projects, preferences, and saved summaries.
+      </p>
+
+      {/* Storage overview */}
+      <section className="mb-6">
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3">What's Included</h3>
+        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden divide-y divide-slate-100">
+          {EXPORT_STORAGE_KEYS.map(key => {
+            const raw = localStorage.getItem(key);
+            const exists = raw !== null;
+            const shortName = key.replace('taskpanels.', '').replace('.v1', '');
+            return (
+              <div key={key} className="flex items-center justify-between px-4 py-3">
+                <span className={`text-sm ${exists ? 'text-slate-900' : 'text-slate-300'}`}>{shortName}</span>
+                <span className={`text-xs tabular-nums ${exists ? 'text-slate-500' : 'text-slate-300'}`}>
+                  {exists ? `${((raw?.length ?? 0) / 1024).toFixed(1)} KB` : 'empty'}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+        <p className="mt-2 text-[11px] text-slate-400">
+          Total: {sizeLabel} across {storageKeys.length} store{storageKeys.length !== 1 ? 's' : ''}.
+        </p>
+      </section>
+
+      {/* Export button */}
+      <button
+        type="button"
+        onClick={handleExport}
+        className={`w-full py-3 rounded-xl text-sm font-semibold transition-colors ${
+          exported
+            ? 'bg-emerald-500 text-white'
+            : 'bg-slate-900 text-white hover:bg-slate-800'
+        }`}
+      >
+        {exported ? 'Downloaded!' : 'Export as JSON'}
+      </button>
+    </SettingsShell>
+  );
+};
+
+// ============================================================
+// Settings: Reset Workspace
+// ============================================================
+
+const SettingsReset: React.FC = () => {
+  const { navigate } = useNav();
+  const [confirming, setConfirming] = useState(false);
+  const [confirmText, setConfirmText] = useState('');
+
+  const handleReset = () => {
+    // Double-gate: user must type "RESET" AND click the button.
+    if (confirmText !== 'RESET') return;
+    try {
+      // Clear all TaskPanels-scoped localStorage keys.
+      const allKeys = Object.keys(localStorage);
+      for (const key of allKeys) {
+        if (key.startsWith('taskpanels.')) {
+          localStorage.removeItem(key);
+        }
+      }
+    } catch { /* best effort */ }
+    // Reload to reinitialize from defaults.
+    window.location.href = '/';
+  };
+
+  return (
+    <SettingsShell title="Reset Workspace" crumb={{ label: 'Advanced', screen: 'settings' }}>
+      <p className="text-sm text-slate-500 mb-6">
+        Wipe all locally stored data and start fresh. This cannot be undone — all panels,
+        projects, tracked time, saved summaries, and preferences will be permanently deleted.
+      </p>
+
+      {/* Warning card */}
+      <div className="rounded-xl bg-red-50 border border-red-200 p-4 flex items-start gap-3 mb-6">
+        <svg className="w-5 h-5 text-red-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+          <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+          <line x1="12" y1="9" x2="12" y2="13" />
+          <line x1="12" y1="17" x2="12.01" y2="17" />
+        </svg>
+        <div>
+          <div className="text-sm font-semibold text-red-800">Destructive action</div>
+          <div className="text-xs text-red-600 mt-0.5">
+            This permanently deletes all your data from this browser.
+            Consider exporting your data first.
+          </div>
+        </div>
+      </div>
+
+      {/* Export reminder */}
+      <button
+        type="button"
+        onClick={() => navigate('settings-data-export')}
+        className="w-full mb-6 py-3 rounded-xl text-sm font-semibold border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+      >
+        Export Data First
+      </button>
+
+      {/* Confirmation flow */}
+      {!confirming ? (
+        <button
+          type="button"
+          onClick={() => setConfirming(true)}
+          className="w-full py-3 rounded-xl text-sm font-semibold border border-red-200 text-red-600 hover:bg-red-50"
+        >
+          I want to reset my workspace
+        </button>
+      ) : (
+        <div className="bg-white rounded-2xl border border-red-200 p-4">
+          <p className="text-sm text-slate-700 mb-3">
+            Type <code className="px-1.5 py-0.5 rounded bg-red-50 text-red-700 font-mono text-xs font-bold">RESET</code> to confirm.
+          </p>
+          <input
+            type="text"
+            value={confirmText}
+            onChange={e => setConfirmText(e.target.value.toUpperCase())}
+            placeholder="Type RESET"
+            autoFocus
+            className="w-full text-sm text-slate-900 border border-slate-200 rounded-lg px-3 py-2 mb-3 bg-white outline-none focus:border-red-400 placeholder-slate-300"
+          />
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={handleReset}
+              disabled={confirmText !== 'RESET'}
+              className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-red-600 text-white hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Permanently Reset
+            </button>
+            <button
+              type="button"
+              onClick={() => { setConfirming(false); setConfirmText(''); }}
+              className="px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-500 hover:text-slate-700"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+    </SettingsShell>
+  );
+};
+
+// ============================================================
 // Router
 // ============================================================
 
@@ -1986,6 +2354,10 @@ export const SettingsScreen: React.FC = () => {
       return <SettingsEmailTemplate />;
     case 'settings-auto-email':
       return <SettingsAutoEmail />;
+    case 'settings-data-export':
+      return <SettingsDataExport />;
+    case 'settings-reset':
+      return <SettingsReset />;
     case 'settings':
     default:
       return <SettingsHome />;

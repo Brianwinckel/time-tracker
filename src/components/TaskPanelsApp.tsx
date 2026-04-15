@@ -42,6 +42,7 @@ import {
   saveRuns,
   makePanel,
   makePanelFromType,
+  colorOptionFor,
   makeMeetingPanel,
   makeRun,
   BREAK_PANEL_ID,
@@ -120,6 +121,8 @@ const VALID_SCREENS: PreviewScreen[] = [
   'settings-summary-defaults',
   'settings-email-template',
   'settings-auto-email',
+  'settings-data-export',
+  'settings-reset',
 ];
 
 /** Determine initial screen: if no onboarding result exists and no explicit
@@ -429,6 +432,30 @@ export const TaskPanelsApp: React.FC<TaskPanelsAppProps> = ({ authUser }) => {
     setPanelCatalog(prev => prev.filter(p => p.id !== id));
   }, []);
 
+  const updateCatalogPanel = useCallback(
+    (id: string, patch: { name?: string; colorId?: string }) => {
+      setPanelCatalog(prev =>
+        prev.map(p => {
+          if (p.id !== id) return p;
+          const name = patch.name?.trim() || p.name;
+          const colorId = patch.colorId ?? p.color;
+          const opt = colorOptionFor(colorId);
+          return {
+            ...p,
+            name,
+            color: opt.id,
+            bgClass: opt.bgClass,
+            borderClass: opt.borderClass,
+            barClass: opt.barClass,
+            timerColorClass: opt.timerColorClass,
+            activeColorClass: opt.activeColorClass,
+          };
+        }),
+      );
+    },
+    [],
+  );
+
   // ---- Panel instance actions ----
 
   const createPanelInstance = useCallback((typeId: string): Panel | null => {
@@ -632,6 +659,7 @@ export const TaskPanelsApp: React.FC<TaskPanelsAppProps> = ({ authUser }) => {
     panelCatalog,
     createPanel,
     removePanel,
+    updateCatalogPanel,
     panels,
     createPanelInstance,
     createPanelAndStart,
