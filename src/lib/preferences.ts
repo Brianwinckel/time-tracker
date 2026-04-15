@@ -51,6 +51,16 @@ export interface AppPreferences {
    *  Clamped to [1, 16]. Default 8. */
   overtimeThresholdHours: number;
 
+  // ---- Reporting: Summary Content Blocks ----
+  /** Toggle visibility of individual blocks on the generated summary. */
+  summaryShowScorecard: boolean;
+  summaryShowDayComposition: boolean;
+  summaryShowTimeline: boolean;
+  summaryShowProjectBreakdown: boolean;
+  summaryShowNarrative: boolean;
+  summaryShowFollowUps: boolean;
+  summaryShowOvertime: boolean;
+
   // ---- Reporting: Email Template ----
   /** Subject line template. {date} is replaced with the report date. */
   emailSubjectTemplate: string;
@@ -86,6 +96,14 @@ export const DEFAULT_PREFERENCES: AppPreferences = {
   defaultAudience: 'manager',
   defaultSummaryStyle: 'standard',
   overtimeThresholdHours: 8,
+  // Reporting: Summary Content Blocks
+  summaryShowScorecard: true,
+  summaryShowDayComposition: true,
+  summaryShowTimeline: true,
+  summaryShowProjectBreakdown: true,
+  summaryShowNarrative: true,
+  summaryShowFollowUps: true,
+  summaryShowOvertime: true,
   // Reporting: Email Template
   emailSubjectTemplate: 'Daily Summary — {date}',
   emailIncludeTimeline: true,
@@ -164,6 +182,34 @@ export function loadPreferences(): AppPreferences {
         typeof parsed.overtimeThresholdHours === 'number' && parsed.overtimeThresholdHours >= 1
           ? Math.min(16, Math.floor(parsed.overtimeThresholdHours))
           : DEFAULT_PREFERENCES.overtimeThresholdHours,
+      summaryShowScorecard:
+        typeof parsed.summaryShowScorecard === 'boolean'
+          ? parsed.summaryShowScorecard
+          : DEFAULT_PREFERENCES.summaryShowScorecard,
+      summaryShowDayComposition:
+        typeof parsed.summaryShowDayComposition === 'boolean'
+          ? parsed.summaryShowDayComposition
+          : DEFAULT_PREFERENCES.summaryShowDayComposition,
+      summaryShowTimeline:
+        typeof parsed.summaryShowTimeline === 'boolean'
+          ? parsed.summaryShowTimeline
+          : DEFAULT_PREFERENCES.summaryShowTimeline,
+      summaryShowProjectBreakdown:
+        typeof parsed.summaryShowProjectBreakdown === 'boolean'
+          ? parsed.summaryShowProjectBreakdown
+          : DEFAULT_PREFERENCES.summaryShowProjectBreakdown,
+      summaryShowNarrative:
+        typeof parsed.summaryShowNarrative === 'boolean'
+          ? parsed.summaryShowNarrative
+          : DEFAULT_PREFERENCES.summaryShowNarrative,
+      summaryShowFollowUps:
+        typeof parsed.summaryShowFollowUps === 'boolean'
+          ? parsed.summaryShowFollowUps
+          : DEFAULT_PREFERENCES.summaryShowFollowUps,
+      summaryShowOvertime:
+        typeof parsed.summaryShowOvertime === 'boolean'
+          ? parsed.summaryShowOvertime
+          : DEFAULT_PREFERENCES.summaryShowOvertime,
       // Reporting: Email Template
       emailSubjectTemplate:
         typeof parsed.emailSubjectTemplate === 'string' && parsed.emailSubjectTemplate.trim().length > 0

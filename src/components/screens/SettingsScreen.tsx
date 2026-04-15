@@ -1776,89 +1776,149 @@ const SettingsBreakDefaults: React.FC = () => {
 };
 
 // ============================================================
-// Settings: Summary Defaults
+// Settings: Summary Defaults — content block toggles
 // ============================================================
 
-const AUDIENCE_OPTIONS: { value: AppPreferences['defaultAudience']; label: string; description: string }[] = [
-  { value: 'manager',  label: 'Manager',  description: 'Formal tone, outcome-focused' },
-  { value: 'team',     label: 'Team',     description: 'Collaborative, progress updates' },
-  { value: 'client',   label: 'Client',   description: 'External-facing, billable focus' },
-  { value: 'personal', label: 'Personal', description: 'Reflective, for your own records' },
-];
+type SummaryBlockKey = Extract<keyof AppPreferences,
+  | 'summaryShowScorecard'
+  | 'summaryShowDayComposition'
+  | 'summaryShowTimeline'
+  | 'summaryShowProjectBreakdown'
+  | 'summaryShowNarrative'
+  | 'summaryShowFollowUps'
+  | 'summaryShowOvertime'
+>;
 
-const STYLE_OPTIONS: { value: AppPreferences['defaultSummaryStyle']; label: string; description: string }[] = [
-  { value: 'concise',  label: 'Concise',  description: 'Headlines only — fast to scan' },
-  { value: 'standard', label: 'Standard', description: 'Balanced detail and brevity' },
-  { value: 'detailed', label: 'Detailed', description: 'Full narrative with breakdowns' },
+const SUMMARY_BLOCKS: { key: SummaryBlockKey; label: string; description: string; icon: React.ReactNode }[] = [
+  {
+    key: 'summaryShowScorecard',
+    label: 'Scorecard',
+    description: 'KPI tiles — tracked time, focus, meetings, completed',
+    icon: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="3" width="7" height="7" rx="1" />
+        <rect x="14" y="3" width="7" height="7" rx="1" />
+        <rect x="3" y="14" width="7" height="7" rx="1" />
+        <rect x="14" y="14" width="7" height="7" rx="1" />
+      </svg>
+    ),
+  },
+  {
+    key: 'summaryShowDayComposition',
+    label: 'Day Composition',
+    description: 'Donut chart showing how your time was split',
+    icon: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="10" />
+        <path d="M12 2a10 10 0 0110 10h-10V2z" />
+      </svg>
+    ),
+  },
+  {
+    key: 'summaryShowTimeline',
+    label: 'Timeline',
+    description: 'Time-of-day rail showing when you worked on what',
+    icon: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="10" />
+        <polyline points="12 6 12 12 16 14" />
+      </svg>
+    ),
+  },
+  {
+    key: 'summaryShowProjectBreakdown',
+    label: 'Project Breakdown',
+    description: 'Per-project time, outcomes, and effort rollups',
+    icon: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+        <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2v11z" />
+      </svg>
+    ),
+  },
+  {
+    key: 'summaryShowNarrative',
+    label: 'AI Narrative',
+    description: 'Written summary paragraphs describing your day',
+    icon: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 20h9" />
+        <path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z" />
+      </svg>
+    ),
+  },
+  {
+    key: 'summaryShowFollowUps',
+    label: 'Follow-ups & Blockers',
+    description: 'Action items and blocked work needing attention',
+    icon: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+        <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+        <line x1="12" y1="9" x2="12" y2="13" />
+        <line x1="12" y1="17" x2="12.01" y2="17" />
+      </svg>
+    ),
+  },
+  {
+    key: 'summaryShowOvertime',
+    label: 'Overtime Warning',
+    description: 'Banner when tracked time exceeds your threshold',
+    icon: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+      </svg>
+    ),
+  },
 ];
 
 const SettingsSummaryDefaults: React.FC = () => {
   const { preferences, setPreference } = useNav();
+  const enabledCount = SUMMARY_BLOCKS.filter(b => preferences[b.key]).length;
+
   return (
     <SettingsShell title="Summary Defaults" crumb={{ label: 'Reporting', screen: 'settings' }}>
       <p className="text-sm text-slate-500 mb-6">
-        These defaults pre-fill when you open Prepare Summary. You can always change
-        them per-report — this just sets the starting point.
+        Choose which sections appear on your generated summary. Toggle off blocks
+        you don't need — the data is still tracked, just hidden from the report.
       </p>
 
-      {/* Default Audience */}
+      {/* Content block toggles */}
       <section className="mb-6">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3">Default Audience</h3>
-        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-          {AUDIENCE_OPTIONS.map((opt, i) => (
-            <button
-              key={opt.value}
-              type="button"
-              onClick={() => setPreference('defaultAudience', opt.value)}
-              className={`w-full flex items-center gap-3 px-4 py-3.5 text-left transition-colors ${
-                i > 0 ? 'border-t border-slate-100' : ''
-              } ${preferences.defaultAudience === opt.value ? 'bg-blue-50' : 'hover:bg-slate-50'}`}
-            >
-              <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${
-                preferences.defaultAudience === opt.value
-                  ? 'border-blue-500 bg-blue-500'
-                  : 'border-slate-300'
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3">
+          Summary Sections
+          <span className="ml-2 text-slate-300 normal-case font-normal">
+            {enabledCount} of {SUMMARY_BLOCKS.length} enabled
+          </span>
+        </h3>
+        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden divide-y divide-slate-100">
+          {SUMMARY_BLOCKS.map(block => (
+            <div key={block.key} className="flex items-center gap-3 px-4 py-3.5">
+              <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
+                preferences[block.key]
+                  ? 'bg-blue-50 text-blue-500'
+                  : 'bg-slate-100 text-slate-300'
               }`}>
-                {preferences.defaultAudience === opt.value && (
-                  <div className="w-2 h-2 rounded-full bg-white" />
-                )}
+                {block.icon}
               </div>
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium text-slate-900">{opt.label}</div>
-                <div className="text-xs text-slate-500">{opt.description}</div>
+                <div className={`text-sm font-medium ${preferences[block.key] ? 'text-slate-900' : 'text-slate-400'}`}>
+                  {block.label}
+                </div>
+                <div className="text-xs text-slate-500">{block.description}</div>
               </div>
-            </button>
-          ))}
-        </div>
-      </section>
-
-      {/* Default Summary Style */}
-      <section className="mb-6">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3">Default Detail Level</h3>
-        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-          {STYLE_OPTIONS.map((opt, i) => (
-            <button
-              key={opt.value}
-              type="button"
-              onClick={() => setPreference('defaultSummaryStyle', opt.value)}
-              className={`w-full flex items-center gap-3 px-4 py-3.5 text-left transition-colors ${
-                i > 0 ? 'border-t border-slate-100' : ''
-              } ${preferences.defaultSummaryStyle === opt.value ? 'bg-blue-50' : 'hover:bg-slate-50'}`}
-            >
-              <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${
-                preferences.defaultSummaryStyle === opt.value
-                  ? 'border-blue-500 bg-blue-500'
-                  : 'border-slate-300'
-              }`}>
-                {preferences.defaultSummaryStyle === opt.value && (
-                  <div className="w-2 h-2 rounded-full bg-white" />
-                )}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium text-slate-900">{opt.label}</div>
-                <div className="text-xs text-slate-500">{opt.description}</div>
-              </div>
-            </button>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={preferences[block.key]}
+                onClick={() => setPreference(block.key, !preferences[block.key])}
+                className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ${
+                  preferences[block.key] ? 'bg-blue-500' : 'bg-slate-200'
+                }`}
+              >
+                <span className={`inline-block h-5 w-5 rounded-full bg-white shadow-sm transition-transform duration-200 ${
+                  preferences[block.key] ? 'translate-x-5' : 'translate-x-0'
+                }`} />
+              </button>
+            </div>
           ))}
         </div>
       </section>

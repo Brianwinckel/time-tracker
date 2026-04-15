@@ -18,9 +18,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNav } from '../../lib/previewNav';
 import { AvatarBadge } from '../AvatarBadge';
+import type { AppPreferences } from '../../lib/preferences';
 
 export const ProfileScreen: React.FC = () => {
-  const { navigate, userProfile, updateProfile } = useNav();
+  const { navigate, userProfile, updateProfile, preferences, setPreference } = useNav();
   const fileRef = useRef<HTMLInputElement | null>(null);
 
   // Local draft form state — committed on Save so we can show a
@@ -284,6 +285,75 @@ export const ProfileScreen: React.FC = () => {
               >
                 Save Changes
               </button>
+            </div>
+          </div>
+        </section>
+
+        {/* ===== Summary Preferences ===== */}
+        <section className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+          <header className="px-5 py-4 border-b border-slate-100">
+            <h2 className="text-sm font-bold text-slate-900">Summary Preferences</h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              These defaults pre-fill when you generate a summary. You can always override per-report.
+            </p>
+          </header>
+          <div className="p-5 space-y-5">
+            {/* Audience tone picker */}
+            <div>
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 block mb-2">
+                Default Audience Tone
+              </span>
+              <div className="grid grid-cols-2 gap-2">
+                {([
+                  { value: 'manager',  label: 'Manager',  desc: 'Formal, outcome-focused' },
+                  { value: 'team',     label: 'Team',     desc: 'Collaborative updates' },
+                  { value: 'client',   label: 'Client',   desc: 'External, billable focus' },
+                  { value: 'personal', label: 'Personal', desc: 'Reflective, for you' },
+                ] as const).map(opt => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setPreference('defaultAudience', opt.value)}
+                    className={`px-3 py-2.5 rounded-xl border text-left transition-colors ${
+                      preferences.defaultAudience === opt.value
+                        ? 'border-blue-400 bg-blue-50'
+                        : 'border-slate-200 bg-white hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className={`text-sm font-medium ${
+                      preferences.defaultAudience === opt.value ? 'text-blue-700' : 'text-slate-900'
+                    }`}>{opt.label}</div>
+                    <div className="text-[11px] text-slate-500">{opt.desc}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Detail level picker */}
+            <div>
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 block mb-2">
+                Default Detail Level
+              </span>
+              <div className="flex gap-2">
+                {([
+                  { value: 'concise',  label: 'Concise' },
+                  { value: 'standard', label: 'Standard' },
+                  { value: 'detailed', label: 'Detailed' },
+                ] as const).map(opt => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setPreference('defaultSummaryStyle', opt.value)}
+                    className={`flex-1 px-3 py-2 rounded-xl border text-sm font-medium text-center transition-colors ${
+                      preferences.defaultSummaryStyle === opt.value
+                        ? 'border-blue-400 bg-blue-50 text-blue-700'
+                        : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         </section>
