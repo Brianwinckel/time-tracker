@@ -21,6 +21,7 @@ import { useNav } from '../../lib/previewNav';
 import type { PreviewScreen } from '../../lib/previewNav';
 import { PANEL_COLOR_OPTIONS, colorOptionFor } from '../../lib/panelCatalog';
 import { activeProjects, type Project } from '../../lib/projects';
+import type { AppPreferences } from '../../lib/preferences';
 
 // ============================================================
 // Shared shell
@@ -153,9 +154,9 @@ const buildSections = (handlers: SectionHandlers): SectionDef[] => [
       </svg>
     ),
     items: [
-      { label: 'Summary Defaults', soon: true },
-      { label: 'Email Template', soon: true },
-      { label: 'Auto Daily Email', soon: true },
+      { label: 'Summary Defaults', screen: 'settings-summary-defaults' },
+      { label: 'Email Template', screen: 'settings-email-template' },
+      { label: 'Auto Daily Email', screen: 'settings-auto-email' },
     ],
   },
   {
@@ -1613,6 +1614,349 @@ const SettingsBreakDefaults: React.FC = () => {
 };
 
 // ============================================================
+// Settings: Summary Defaults
+// ============================================================
+
+const AUDIENCE_OPTIONS: { value: AppPreferences['defaultAudience']; label: string; description: string }[] = [
+  { value: 'manager',  label: 'Manager',  description: 'Formal tone, outcome-focused' },
+  { value: 'team',     label: 'Team',     description: 'Collaborative, progress updates' },
+  { value: 'client',   label: 'Client',   description: 'External-facing, billable focus' },
+  { value: 'personal', label: 'Personal', description: 'Reflective, for your own records' },
+];
+
+const STYLE_OPTIONS: { value: AppPreferences['defaultSummaryStyle']; label: string; description: string }[] = [
+  { value: 'concise',  label: 'Concise',  description: 'Headlines only — fast to scan' },
+  { value: 'standard', label: 'Standard', description: 'Balanced detail and brevity' },
+  { value: 'detailed', label: 'Detailed', description: 'Full narrative with breakdowns' },
+];
+
+const SettingsSummaryDefaults: React.FC = () => {
+  const { preferences, setPreference } = useNav();
+  return (
+    <SettingsShell title="Summary Defaults" crumb={{ label: 'Reporting', screen: 'settings' }}>
+      <p className="text-sm text-slate-500 mb-6">
+        These defaults pre-fill when you open Prepare Summary. You can always change
+        them per-report — this just sets the starting point.
+      </p>
+
+      {/* Default Audience */}
+      <section className="mb-6">
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3">Default Audience</h3>
+        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+          {AUDIENCE_OPTIONS.map((opt, i) => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => setPreference('defaultAudience', opt.value)}
+              className={`w-full flex items-center gap-3 px-4 py-3.5 text-left transition-colors ${
+                i > 0 ? 'border-t border-slate-100' : ''
+              } ${preferences.defaultAudience === opt.value ? 'bg-blue-50' : 'hover:bg-slate-50'}`}
+            >
+              <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                preferences.defaultAudience === opt.value
+                  ? 'border-blue-500 bg-blue-500'
+                  : 'border-slate-300'
+              }`}>
+                {preferences.defaultAudience === opt.value && (
+                  <div className="w-2 h-2 rounded-full bg-white" />
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium text-slate-900">{opt.label}</div>
+                <div className="text-xs text-slate-500">{opt.description}</div>
+              </div>
+            </button>
+          ))}
+        </div>
+      </section>
+
+      {/* Default Summary Style */}
+      <section className="mb-6">
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3">Default Detail Level</h3>
+        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+          {STYLE_OPTIONS.map((opt, i) => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => setPreference('defaultSummaryStyle', opt.value)}
+              className={`w-full flex items-center gap-3 px-4 py-3.5 text-left transition-colors ${
+                i > 0 ? 'border-t border-slate-100' : ''
+              } ${preferences.defaultSummaryStyle === opt.value ? 'bg-blue-50' : 'hover:bg-slate-50'}`}
+            >
+              <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                preferences.defaultSummaryStyle === opt.value
+                  ? 'border-blue-500 bg-blue-500'
+                  : 'border-slate-300'
+              }`}>
+                {preferences.defaultSummaryStyle === opt.value && (
+                  <div className="w-2 h-2 rounded-full bg-white" />
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium text-slate-900">{opt.label}</div>
+                <div className="text-xs text-slate-500">{opt.description}</div>
+              </div>
+            </button>
+          ))}
+        </div>
+      </section>
+
+      {/* Overtime Threshold */}
+      <section className="mb-6">
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3">Overtime Threshold</h3>
+        <div className="bg-white rounded-2xl border border-slate-200 p-4">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-medium text-slate-900">Flag overtime after</div>
+              <div className="text-xs text-slate-500">
+                Tracked time beyond this is highlighted in your summary
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setPreference('overtimeThresholdHours', Math.max(1, preferences.overtimeThresholdHours - 1))}
+                className="w-8 h-8 rounded-lg border border-slate-200 bg-white flex items-center justify-center text-slate-500 hover:text-slate-900 hover:border-slate-300"
+              >
+                <span className="text-lg leading-none">−</span>
+              </button>
+              <span className="text-sm font-semibold text-slate-900 w-12 text-center tabular-nums">
+                {preferences.overtimeThresholdHours}h
+              </span>
+              <button
+                type="button"
+                onClick={() => setPreference('overtimeThresholdHours', Math.min(16, preferences.overtimeThresholdHours + 1))}
+                className="w-8 h-8 rounded-lg border border-slate-200 bg-white flex items-center justify-center text-slate-500 hover:text-slate-900 hover:border-slate-300"
+              >
+                <span className="text-lg leading-none">+</span>
+              </button>
+            </div>
+          </div>
+        </div>
+        <p className="mt-2 text-[11px] text-slate-400">
+          Range: 1–16 hours.
+        </p>
+      </section>
+    </SettingsShell>
+  );
+};
+
+// ============================================================
+// Settings: Email Template
+// ============================================================
+
+const SettingsEmailTemplate: React.FC = () => {
+  const { preferences, setPreference } = useNav();
+  const [subject, setSubject] = useState(preferences.emailSubjectTemplate);
+
+  // Debounce save — commit to preferences when user stops typing.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      if (subject.trim() && subject !== preferences.emailSubjectTemplate) {
+        setPreference('emailSubjectTemplate', subject);
+      }
+    }, 600);
+    return () => clearTimeout(t);
+  }, [subject, preferences.emailSubjectTemplate, setPreference]);
+
+  const toggleRow = (
+    label: string,
+    description: string,
+    prefKey: 'emailIncludeTimeline' | 'emailIncludeNarrative' | 'emailIncludeProjects',
+  ) => (
+    <div className="flex items-center justify-between gap-3 px-4 py-3.5">
+      <div className="flex-1 min-w-0">
+        <div className="text-sm font-medium text-slate-900">{label}</div>
+        <div className="text-xs text-slate-500">{description}</div>
+      </div>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={preferences[prefKey]}
+        onClick={() => setPreference(prefKey, !preferences[prefKey])}
+        className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ${
+          preferences[prefKey] ? 'bg-blue-500' : 'bg-slate-200'
+        }`}
+      >
+        <span className={`inline-block h-5 w-5 rounded-full bg-white shadow-sm transition-transform duration-200 ${
+          preferences[prefKey] ? 'translate-x-5' : 'translate-x-0'
+        }`} />
+      </button>
+    </div>
+  );
+
+  return (
+    <SettingsShell title="Email Template" crumb={{ label: 'Reporting', screen: 'settings' }}>
+      <p className="text-sm text-slate-500 mb-6">
+        Customize what goes into your summary emails. The template applies to both
+        manual exports and auto daily emails.
+      </p>
+
+      {/* Subject line */}
+      <section className="mb-6">
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3">Subject Line</h3>
+        <div className="bg-white rounded-2xl border border-slate-200 p-4">
+          <input
+            type="text"
+            value={subject}
+            onChange={e => setSubject(e.target.value)}
+            placeholder="Daily Summary — {date}"
+            className="w-full text-sm text-slate-900 bg-transparent border-0 outline-none placeholder-slate-300"
+          />
+          <p className="mt-2 text-[11px] text-slate-400">
+            Use <code className="px-1 py-0.5 rounded bg-slate-100 text-slate-500 font-mono text-[10px]">{'{date}'}</code> as
+            a placeholder for the report date.
+          </p>
+        </div>
+      </section>
+
+      {/* Include blocks */}
+      <section className="mb-6">
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3">Include in Export</h3>
+        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden divide-y divide-slate-100">
+          {toggleRow('Timeline', 'Time-of-day rail showing when you worked on what', 'emailIncludeTimeline')}
+          {toggleRow('Narrative', 'The written summary paragraph(s)', 'emailIncludeNarrative')}
+          {toggleRow('Project Breakdown', 'Per-project time and outcome rollups', 'emailIncludeProjects')}
+        </div>
+      </section>
+
+      {/* Preview badge */}
+      <div className="rounded-xl bg-slate-100 border border-slate-200 p-4 text-center">
+        <div className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1">Preview</div>
+        <div className="text-sm text-slate-600 font-medium">
+          {subject.replace('{date}', new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }))}
+        </div>
+        <div className="mt-2 flex items-center justify-center gap-2 text-[11px] text-slate-400">
+          {preferences.emailIncludeTimeline && <span className="px-2 py-0.5 rounded-full bg-white border border-slate-200">Timeline</span>}
+          {preferences.emailIncludeNarrative && <span className="px-2 py-0.5 rounded-full bg-white border border-slate-200">Narrative</span>}
+          {preferences.emailIncludeProjects && <span className="px-2 py-0.5 rounded-full bg-white border border-slate-200">Projects</span>}
+        </div>
+      </div>
+    </SettingsShell>
+  );
+};
+
+// ============================================================
+// Settings: Auto Daily Email
+// ============================================================
+
+const SettingsAutoEmail: React.FC = () => {
+  const { preferences, setPreference } = useNav();
+
+  /** Convert "HH:MM" ↔ time input. */
+  const handleTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const v = e.target.value;
+    if (/^\d{2}:\d{2}$/.test(v)) {
+      setPreference('autoDailyEmailTime', v);
+    }
+  };
+
+  /** Convert 24h "HH:MM" to display string respecting user's time format pref. */
+  const displayTime = (hhmm: string) => {
+    const [hStr, mStr] = hhmm.split(':');
+    const h = parseInt(hStr, 10);
+    const m = mStr;
+    if (preferences.timeFormat === '24h') return hhmm;
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const h12 = h % 12 || 12;
+    return `${h12}:${m} ${ampm}`;
+  };
+
+  return (
+    <SettingsShell title="Auto Daily Email" crumb={{ label: 'Reporting', screen: 'settings' }}>
+      <p className="text-sm text-slate-500 mb-6">
+        Automatically email your daily summary at a set time each day.
+        The email uses your Email Template settings for formatting.
+      </p>
+
+      {/* Master toggle */}
+      <section className="mb-6">
+        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+          <div className="flex items-center justify-between gap-3 px-4 py-4">
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-medium text-slate-900">Enable Auto Daily Email</div>
+              <div className="text-xs text-slate-500">
+                Send your summary automatically — no manual export needed
+              </div>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={preferences.autoDailyEmailEnabled}
+              onClick={() => setPreference('autoDailyEmailEnabled', !preferences.autoDailyEmailEnabled)}
+              className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ${
+                preferences.autoDailyEmailEnabled ? 'bg-blue-500' : 'bg-slate-200'
+              }`}
+            >
+              <span className={`inline-block h-5 w-5 rounded-full bg-white shadow-sm transition-transform duration-200 ${
+                preferences.autoDailyEmailEnabled ? 'translate-x-5' : 'translate-x-0'
+              }`} />
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* Sub-settings — only interactive when enabled */}
+      <div className={preferences.autoDailyEmailEnabled ? '' : 'opacity-50 pointer-events-none'}>
+        {/* Send time */}
+        <section className="mb-6">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3">Send Time</h3>
+          <div className="bg-white rounded-2xl border border-slate-200 p-4">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium text-slate-900">Daily at</div>
+                <div className="text-xs text-slate-500">
+                  Currently set to {displayTime(preferences.autoDailyEmailTime)}
+                </div>
+              </div>
+              <input
+                type="time"
+                value={preferences.autoDailyEmailTime}
+                onChange={handleTimeChange}
+                className="text-sm text-slate-900 border border-slate-200 rounded-lg px-3 py-1.5 bg-white"
+              />
+            </div>
+          </div>
+        </section>
+
+        {/* Recipient */}
+        <section className="mb-6">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3">Recipient</h3>
+          <div className="bg-white rounded-2xl border border-slate-200 p-4">
+            <input
+              type="email"
+              value={preferences.autoDailyEmailRecipient}
+              onChange={e => setPreference('autoDailyEmailRecipient', e.target.value)}
+              placeholder="manager@company.com"
+              className="w-full text-sm text-slate-900 bg-transparent border-0 outline-none placeholder-slate-300"
+            />
+            <p className="mt-2 text-[11px] text-slate-400">
+              The email address that receives your automatic daily summary.
+            </p>
+          </div>
+        </section>
+
+        {/* Status badge */}
+        <div className="rounded-xl bg-amber-50 border border-amber-200 p-4 flex items-start gap-3">
+          <svg className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="8" x2="12" y2="12" />
+            <line x1="12" y1="16" x2="12.01" y2="16" />
+          </svg>
+          <div>
+            <div className="text-sm font-medium text-amber-800">Email delivery coming soon</div>
+            <div className="text-xs text-amber-600 mt-0.5">
+              Your settings are saved and will take effect once email integration is live.
+              For now, use the export button on the Daily Summary screen.
+            </div>
+          </div>
+        </div>
+      </div>
+    </SettingsShell>
+  );
+};
+
+// ============================================================
 // Router
 // ============================================================
 
@@ -1636,6 +1980,12 @@ export const SettingsScreen: React.FC = () => {
       return <SettingsDefaultView />;
     case 'settings-notifications':
       return <SettingsNotifications />;
+    case 'settings-summary-defaults':
+      return <SettingsSummaryDefaults />;
+    case 'settings-email-template':
+      return <SettingsEmailTemplate />;
+    case 'settings-auto-email':
+      return <SettingsAutoEmail />;
     case 'settings':
     default:
       return <SettingsHome />;

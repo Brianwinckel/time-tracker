@@ -32,7 +32,10 @@ export type PreviewScreen =
   | 'settings-breaks'
   | 'settings-appearance'
   | 'settings-day-view'
-  | 'settings-notifications';
+  | 'settings-notifications'
+  | 'settings-summary-defaults'
+  | 'settings-email-template'
+  | 'settings-auto-email';
 
 export type NavigateOptions = {
   panelId?: string;

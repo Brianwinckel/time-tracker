@@ -13,6 +13,12 @@ export type TimeFormat = '12h' | '24h';
 /** Which tab Home opens to by default. */
 export type HomeTab = 'today' | 'week' | 'archive';
 
+/** Default audience for summary generation. */
+export type DefaultAudience = 'manager' | 'team' | 'client' | 'personal';
+
+/** Default summary style (level of detail). */
+export type DefaultSummaryStyle = 'concise' | 'standard' | 'detailed';
+
 export interface AppPreferences {
   // ---- Display ----
   timeFormat: TimeFormat;
@@ -35,6 +41,33 @@ export interface AppPreferences {
    *  for longer than this many minutes without a switch. */
   idleWarningEnabled: boolean;
   idleWarningMinutes: number;
+
+  // ---- Reporting: Summary Defaults ----
+  /** Default audience for Prepare Summary. */
+  defaultAudience: DefaultAudience;
+  /** Default detail level for Prepare Summary. */
+  defaultSummaryStyle: DefaultSummaryStyle;
+  /** Overtime threshold in hours. Time beyond this is flagged.
+   *  Clamped to [1, 16]. Default 8. */
+  overtimeThresholdHours: number;
+
+  // ---- Reporting: Email Template ----
+  /** Subject line template. {date} is replaced with the report date. */
+  emailSubjectTemplate: string;
+  /** Include the timeline block in exported/emailed summaries. */
+  emailIncludeTimeline: boolean;
+  /** Include the narrative block in exported/emailed summaries. */
+  emailIncludeNarrative: boolean;
+  /** Include the project breakdown block. */
+  emailIncludeProjects: boolean;
+
+  // ---- Reporting: Auto Daily Email ----
+  /** Master toggle for auto daily email delivery. */
+  autoDailyEmailEnabled: boolean;
+  /** "HH:MM" in 24-hour format for when the email fires. */
+  autoDailyEmailTime: string;
+  /** Recipient address for the auto email. */
+  autoDailyEmailRecipient: string;
 }
 
 const STORAGE_KEY = 'taskpanels.preferences.v1';
@@ -49,10 +82,25 @@ export const DEFAULT_PREFERENCES: AppPreferences = {
   endOfDayTime: '17:00',
   idleWarningEnabled: true,
   idleWarningMinutes: 30,
+  // Reporting: Summary Defaults
+  defaultAudience: 'manager',
+  defaultSummaryStyle: 'standard',
+  overtimeThresholdHours: 8,
+  // Reporting: Email Template
+  emailSubjectTemplate: 'Daily Summary — {date}',
+  emailIncludeTimeline: true,
+  emailIncludeNarrative: true,
+  emailIncludeProjects: true,
+  // Reporting: Auto Daily Email
+  autoDailyEmailEnabled: false,
+  autoDailyEmailTime: '17:30',
+  autoDailyEmailRecipient: '',
 };
 
 const VALID_TIME_FORMATS: TimeFormat[] = ['12h', '24h'];
 const VALID_HOME_TABS: HomeTab[] = ['today', 'week', 'archive'];
+const VALID_AUDIENCES: DefaultAudience[] = ['manager', 'team', 'client', 'personal'];
+const VALID_SUMMARY_STYLES: DefaultSummaryStyle[] = ['concise', 'standard', 'detailed'];
 
 /** Minimal validation for "HH:MM" strings. */
 const isValidTimeString = (s: unknown): s is string =>
@@ -103,6 +151,49 @@ export function loadPreferences(): AppPreferences {
         typeof parsed.idleWarningMinutes === 'number' && parsed.idleWarningMinutes >= 1
           ? Math.min(480, Math.floor(parsed.idleWarningMinutes))
           : DEFAULT_PREFERENCES.idleWarningMinutes,
+      // Reporting: Summary Defaults
+      defaultAudience:
+        VALID_AUDIENCES.includes(parsed.defaultAudience as DefaultAudience)
+          ? (parsed.defaultAudience as DefaultAudience)
+          : DEFAULT_PREFERENCES.defaultAudience,
+      defaultSummaryStyle:
+        VALID_SUMMARY_STYLES.includes(parsed.defaultSummaryStyle as DefaultSummaryStyle)
+          ? (parsed.defaultSummaryStyle as DefaultSummaryStyle)
+          : DEFAULT_PREFERENCES.defaultSummaryStyle,
+      overtimeThresholdHours:
+        typeof parsed.overtimeThresholdHours === 'number' && parsed.overtimeThresholdHours >= 1
+          ? Math.min(16, Math.floor(parsed.overtimeThresholdHours))
+          : DEFAULT_PREFERENCES.overtimeThresholdHours,
+      // Reporting: Email Template
+      emailSubjectTemplate:
+        typeof parsed.emailSubjectTemplate === 'string' && parsed.emailSubjectTemplate.trim().length > 0
+          ? parsed.emailSubjectTemplate
+          : DEFAULT_PREFERENCES.emailSubjectTemplate,
+      emailIncludeTimeline:
+        typeof parsed.emailIncludeTimeline === 'boolean'
+          ? parsed.emailIncludeTimeline
+          : DEFAULT_PREFERENCES.emailIncludeTimeline,
+      emailIncludeNarrative:
+        typeof parsed.emailIncludeNarrative === 'boolean'
+          ? parsed.emailIncludeNarrative
+          : DEFAULT_PREFERENCES.emailIncludeNarrative,
+      emailIncludeProjects:
+        typeof parsed.emailIncludeProjects === 'boolean'
+          ? parsed.emailIncludeProjects
+          : DEFAULT_PREFERENCES.emailIncludeProjects,
+      // Reporting: Auto Daily Email
+      autoDailyEmailEnabled:
+        typeof parsed.autoDailyEmailEnabled === 'boolean'
+          ? parsed.autoDailyEmailEnabled
+          : DEFAULT_PREFERENCES.autoDailyEmailEnabled,
+      autoDailyEmailTime:
+        isValidTimeString(parsed.autoDailyEmailTime)
+          ? parsed.autoDailyEmailTime
+          : DEFAULT_PREFERENCES.autoDailyEmailTime,
+      autoDailyEmailRecipient:
+        typeof parsed.autoDailyEmailRecipient === 'string'
+          ? parsed.autoDailyEmailRecipient.trim()
+          : DEFAULT_PREFERENCES.autoDailyEmailRecipient,
     };
   } catch {
     return { ...DEFAULT_PREFERENCES };

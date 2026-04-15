@@ -427,6 +427,7 @@ export const PrepareSummaryScreen: React.FC = () => {
     setCurrentSummary,
     saveSummary,
     runs,
+    preferences,
   } = useNav();
   // Live Panel instances from the day (both still-running and marked done
   // by "End My Day"). These drive the workstream list on this screen.
@@ -441,8 +442,8 @@ export const PrepareSummaryScreen: React.FC = () => {
   const goHome = () => navigate('home');
   // ---- Local state ----
   const [reportType, setReportType] = useState<ReportType>('daily');
-  const [audience, setAudience] = useState<Audience>('manager');
-  const [summaryStyle, setSummaryStyle] = useState<SummaryStyle>('standard');
+  const [audience, setAudience] = useState<Audience>(preferences.defaultAudience);
+  const [summaryStyle, setSummaryStyle] = useState<SummaryStyle>(preferences.defaultSummaryStyle);
   const [rangePreset, setRangePreset] = useState<RangePresetId>('last30');
   const resolvedRange = useMemo(() => resolveRange(rangePreset, new Date()), [rangePreset]);
   const rangeLabel = formatRange(resolvedRange);
@@ -720,6 +721,7 @@ export const PrepareSummaryScreen: React.FC = () => {
       panelEdits: edits,
       breakAccum,
       runs: runsSnapshot,
+      overtimeThresholdMs: preferences.overtimeThresholdHours * 60 * 60 * 1000,
       includedSourceIds,
       externalDigests,
       mode: 'deterministic',

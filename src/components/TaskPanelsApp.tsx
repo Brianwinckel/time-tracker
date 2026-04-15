@@ -117,6 +117,9 @@ const VALID_SCREENS: PreviewScreen[] = [
   'settings-appearance',
   'settings-day-view',
   'settings-notifications',
+  'settings-summary-defaults',
+  'settings-email-template',
+  'settings-auto-email',
 ];
 
 /** Determine initial screen: if no onboarding result exists and no explicit
