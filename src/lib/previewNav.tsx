@@ -65,6 +65,11 @@ type NavContextValue = {
   /** Create a live Panel instance from a catalog type and immediately
    *  start its first run. Returns the new instance. */
   createPanelInstance: (typeId: string) => Panel | null;
+  /** Atomic create-and-start: adds a new catalog entry AND a live
+   *  instance of it in one call, starting the timer. Use this instead
+   *  of calling createPanel + createPanelInstance sequentially, which
+   *  races against the async state update from createPanel. */
+  createPanelAndStart: (input: { name: string; colorId: string }) => Panel;
   /** Create a live meeting Panel instance (template-free — meetings
    *  are one-shot) and immediately start its timer. Returns the new
    *  instance so the caller can navigate into it. */
@@ -158,6 +163,7 @@ export const useNav = (): NavContextValue => {
       removePanel: noop,
       panels: [],
       createPanelInstance: () => null,
+      createPanelAndStart: () => null as unknown as Panel,
       createMeetingInstance: () => ({
         id: 'panel_noop_meeting',
         typeId: '__meeting__',

@@ -148,9 +148,9 @@ export const PickPanelScreen: React.FC = () => {
   const {
     navigate,
     panelCatalog,
-    createPanel,
     removePanel,
     createPanelInstance,
+    createPanelAndStart,
     createMeetingInstance,
     panels,
     panelAccum,
@@ -222,15 +222,11 @@ export const PickPanelScreen: React.FC = () => {
   };
 
   const handleCreate = (name: string, colorId: string) => {
-    // Step 1: append new catalog TYPE. Step 2: spin up an instance of it
-    // so the user lands in Fullscreen tracking the thing they just named.
-    const type = createPanel({ name, colorId });
+    // createPanelAndStart does both steps atomically — avoids the
+    // stale-state race of calling createPanel (async setState) then
+    // createPanelInstance (reads not-yet-updated catalog).
     setCreating(false);
-    const instance = createPanelInstance(type.id);
-    if (!instance) {
-      navigate('home');
-      return;
-    }
+    const instance = createPanelAndStart({ name, colorId });
     navigate('panel', { panelId: instance.id });
   };
 

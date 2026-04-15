@@ -408,6 +408,28 @@ export const TaskPanelsApp: React.FC<TaskPanelsAppProps> = ({ authUser }) => {
     return instance;
   }, [panelCatalog, appendRun, flushBreakRun]);
 
+  // Atomic create-and-start: adds the new type to the catalog AND
+  // spins up an instance in the same call. Avoids the stale-closure
+  // race that happens when createPanel (async setState) is followed
+  // immediately by createPanelInstance (reads not-yet-updated catalog).
+  const createPanelAndStart = useCallback(
+    (input: { name: string; colorId: string }): Panel => {
+      const trimmed = input.name.trim() || 'Untitled panel';
+      const type = makePanel({ name: trimmed, colorId: input.colorId });
+      setPanelCatalog(prev => [...prev, type]);
+      const instance = makePanelFromType(type);
+      setPanels(prev => [...prev, instance]);
+      const now = Date.now();
+      const prev = activeTimerRef.current;
+      flushBreakRun(activeBreakRef.current, now);
+      setActiveBreak(null);
+      if (prev) appendRun(prev.panelId, prev.startedAt, now);
+      setActiveTimer({ panelId: instance.id, startedAt: now });
+      return instance;
+    },
+    [appendRun, flushBreakRun],
+  );
+
   // Meetings skip the catalog (they're one-shot, not templates) and
   // go straight to a Panel instance with `kind: 'meeting'`. Same
   // bank-and-switch semantics as createPanelInstance so starting a
@@ -567,6 +589,7 @@ export const TaskPanelsApp: React.FC<TaskPanelsAppProps> = ({ authUser }) => {
     removePanel,
     panels,
     createPanelInstance,
+    createPanelAndStart,
     createMeetingInstance,
     updatePanel,
     deletePanelInstance,
