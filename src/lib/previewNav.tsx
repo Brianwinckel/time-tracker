@@ -154,7 +154,7 @@ export const useNav = (): NavContextValue => {
       selectedPanelId: null,
       navigate: noop,
       panelCatalog: DEFAULT_PANELS,
-      createPanel: () => DEFAULT_PANELS[0],
+      createPanel: () => null as unknown as MockPanel,
       removePanel: noop,
       panels: [],
       createPanelInstance: () => null,

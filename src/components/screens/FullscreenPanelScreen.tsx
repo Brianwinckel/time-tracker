@@ -13,8 +13,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNav } from '../../lib/previewNav';
 import {
-  makePanelFromType,
-  DEFAULT_PANELS,
   type MeetingType,
   type MeetingAudience,
 } from '../../lib/panelCatalog';
@@ -287,13 +285,11 @@ export function FullscreenPanelScreen() {
   } = useNav();
   const goHome = () => navigate('home');
 
-  // Resolve the selected live Panel instance. If nothing matches (e.g. the
-  // user landed here in isolation) fall back to a synthesized instance of
-  // the first seed type so the screen still renders.
+  // Resolve the selected live Panel instance. Falls back to the first
+  // available panel if the selectedPanelId is stale or missing.
   const panel =
     panels.find(p => p.id === selectedPanelId) ??
-    panels[0] ??
-    makePanelFromType(DEFAULT_PANELS[0]);
+    panels[0];
 
   // Initialize form state from the Panel instance itself.
   const initialColor: ColorName = isColorName(panel.color)

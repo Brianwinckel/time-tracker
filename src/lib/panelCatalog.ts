@@ -122,13 +122,10 @@ export function makePanel(input: { id?: string; name: string; colorId: string })
   };
 }
 
-/** First-run seed. Users can add / remove panels after this. */
-export const DEFAULT_PANELS: MockPanel[] = [
-  makePanel({ id: '1', name: 'Website Refresh', colorId: 'blue' }),
-  makePanel({ id: '2', name: 'Launch Assets',   colorId: 'emerald' }),
-  makePanel({ id: '3', name: 'Internal Ops',    colorId: 'orange' }),
-  makePanel({ id: '4', name: 'Client Review',   colorId: 'purple' }),
-];
+/** No seeded panels — new users start with an empty catalog populated
+ *  via role-specific onboarding. Kept as a named constant so downstream
+ *  fallbacks that reference DEFAULT_PANELS still compile. */
+export const DEFAULT_PANELS: MockPanel[] = [];
 
 /** Back-compat alias. Older code imports MOCK_PANELS from HomeScreen. */
 export const MOCK_PANELS = DEFAULT_PANELS;

@@ -72,15 +72,9 @@ export function makeProject(input: {
 
 // ---- Defaults ----
 
-/**
- * First-run seed. Generic enough to cover most roles; users can
- * rename, archive, or replace these from Settings > Projects.
- */
-export const DEFAULT_PROJECTS: Project[] = [
-  makeProject({ id: 'proj_general',  name: 'General',         colorId: 'slate' }),
-  makeProject({ id: 'proj_internal', name: 'Internal Ops',    colorId: 'orange' }),
-  makeProject({ id: 'proj_client',   name: 'Client Work',     colorId: 'emerald' }),
-];
+/** No seeded projects — new users start with a blank list and add
+ *  their own from Settings > Projects. */
+export const DEFAULT_PROJECTS: Project[] = [];
 
 // ---- Persistence ----
 
