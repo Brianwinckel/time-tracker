@@ -688,11 +688,9 @@ export const TaskPanelsApp: React.FC<TaskPanelsAppProps> = ({ authUser }) => {
     screen === 'performance-review' ||
     screen === 'summary-archive';
   const isTeam = screen === 'team';
-  const isSettings =
-    screen === 'settings' ||
-    screen === 'settings-projects' ||
-    screen === 'settings-panels' ||
-    screen === 'settings-advanced-labels';
+  // startsWith covers the root AND every sub-screen so future
+  // settings-* routes don't need to be listed here one by one.
+  const isSettings = screen === 'settings' || screen.startsWith('settings-');
   const isProfile = screen === 'profile';
 
   // Screens that use the AppShell wrapper (sidebar + main + bottom nav).
