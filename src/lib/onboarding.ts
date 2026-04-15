@@ -92,12 +92,43 @@ const STARTER_PACKS: Record<string, StarterPanel[]> = {
     { name: 'Admin',          colorId: 'slate' },
   ],
   engineering: [
-    { name: 'Coding',         colorId: 'blue' },
-    { name: 'Review',         colorId: 'emerald' },
-    { name: 'Research',       colorId: 'teal' },
-    { name: 'Debugging',      colorId: 'rose' },
-    { name: 'Planning',       colorId: 'purple' },
-    { name: 'Meetings',       colorId: 'amber' },
+    // 🔴 Critical / incident work
+    { name: 'Incident response & troubleshooting', colorId: 'rose' },
+    { name: 'Ticket queue management',             colorId: 'rose' },
+    { name: 'Monitoring & alerts',                 colorId: 'rose' },
+    { name: 'On-call rotations',                   colorId: 'rose' },
+    { name: 'Root cause analysis',                 colorId: 'rose' },
+    // 🟠 Infrastructure & ops
+    { name: 'Deployments & releases',              colorId: 'orange' },
+    { name: 'System patching & updates',           colorId: 'orange' },
+    { name: 'Backups & disaster recovery',         colorId: 'orange' },
+    { name: 'Network management',                  colorId: 'orange' },
+    { name: 'Cloud infrastructure mgmt',           colorId: 'orange' },
+    { name: 'Hardware provisioning',               colorId: 'orange' },
+    // 🟡 Access, security & vendor
+    { name: 'User access & permissions',           colorId: 'amber' },
+    { name: 'Security & compliance tasks',         colorId: 'amber' },
+    { name: 'Vendor & license mgmt',               colorId: 'amber' },
+    // 🟢 Code & quality
+    { name: 'Code & config changes',               colorId: 'emerald' },
+    { name: 'Automation & scripting',              colorId: 'emerald' },
+    { name: 'Testing & QA',                        colorId: 'emerald' },
+    { name: 'Code reviews',                        colorId: 'emerald' },
+    { name: 'Documentation',                       colorId: 'emerald' },
+    // 🔵 Collaboration & comms
+    { name: 'Email & Slack triage',                colorId: 'blue' },
+    { name: 'Meetings & standups',                 colorId: 'blue' },
+    { name: '1:1s',                                colorId: 'blue' },
+    { name: 'Cross-functional collab',             colorId: 'blue' },
+    { name: 'All-hands',                           colorId: 'blue' },
+    { name: 'Informal chats',                      colorId: 'blue' },
+    // 🟣 Planning & growth
+    { name: 'Project planning',                    colorId: 'purple' },
+    { name: 'Training & certifications',           colorId: 'purple' },
+    // ⚪ Overhead
+    { name: 'Lunch & breaks',                      colorId: 'slate' },
+    { name: 'Context switching',                   colorId: 'slate' },
+    { name: 'HR tasks',                            colorId: 'slate' },
   ],
   operations: [
     { name: 'Coordination',   colorId: 'blue' },
