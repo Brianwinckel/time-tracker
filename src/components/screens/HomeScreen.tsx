@@ -13,6 +13,8 @@ import { AvatarBadge } from '../AvatarBadge';
 // Back-compat re-exports so any older imports still resolve.
 import {
   MOCK_PANELS,
+  MEETING_TYPE_LABELS,
+  MEETING_AUDIENCE_LABELS,
   type MockPanel,
   type Panel,
 } from '../../lib/panelCatalog';
@@ -163,7 +165,27 @@ export const HomeScreen: React.FC = () => {
   };
 
   // Subtitle helper — reads context fields directly off the Panel instance.
+  //
+  // Branches on kind so meeting panels don't leak workType/focusNote
+  // through as stale context. For a meeting we prefer the explicit
+  // topic (e.g. "Q3 launch plan"), and fall back to the
+  // meetingType · audience pair (e.g. "Planned · Internal") when the
+  // user hasn't filled in a topic yet. Work panels keep the original
+  // project → workType → focusNote format.
   const subtitle = (p: Panel) => {
+    if (p.kind === 'meeting') {
+      let meetingMeta = p.topic?.trim() ?? '';
+      if (!meetingMeta) {
+        const bits: string[] = [];
+        if (p.meetingType) bits.push(MEETING_TYPE_LABELS[p.meetingType]);
+        if (p.audience) bits.push(MEETING_AUDIENCE_LABELS[p.audience]);
+        meetingMeta = bits.join(' · ');
+      }
+      const parts = [p.project, meetingMeta].filter(
+        (s): s is string => typeof s === 'string' && s.trim().length > 0
+      );
+      return parts.length > 0 ? parts.join(' → ') : 'No description yet';
+    }
     const parts = [p.project, p.workType, p.focusNote].filter(
       (s): s is string => typeof s === 'string' && s.trim().length > 0
     );

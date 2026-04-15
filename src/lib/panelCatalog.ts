@@ -188,6 +188,22 @@ export type PanelKind = 'work' | 'meeting';
 export type MeetingType = 'planned' | 'impromptu';
 export type MeetingAudience = 'internal' | 'client' | 'leadership' | 'vendor';
 
+/** Human-readable labels for the meeting enums. Exported so the home
+ *  screen subtitle, fullscreen picker, and summary renderer all render
+ *  the same strings — if label text ever changes, change it here and
+ *  every surface follows. */
+export const MEETING_TYPE_LABELS: Record<MeetingType, string> = {
+  planned: 'Planned',
+  impromptu: 'Impromptu',
+};
+
+export const MEETING_AUDIENCE_LABELS: Record<MeetingAudience, string> = {
+  internal: 'Internal',
+  client: 'Client',
+  leadership: 'Leadership',
+  vendor: 'Vendor / Partner',
+};
+
 /**
  * A Panel instance is one live card on Home. It's created from a catalog
  * entry (PanelType) and then carries its own project / work type / focus
@@ -321,10 +337,22 @@ export function loadPanels(): Panel[] {
     // rendering path.
     return parsed.map(p => {
       const opt = colorOptionFor(p.color ?? 'blue');
+      const kind: PanelKind = p.kind ?? 'work';
+      // Scrub stale work-panel fields off meeting instances. An earlier
+      // version of FullscreenPanelScreen unconditionally wrote the
+      // `selectedWorkType` useState default ('Coding') back onto every
+      // panel on mount, which corrupted meeting instances with a
+      // misleading subtitle ("Show n Tell → Coding"). The write path is
+      // now gated, but existing saved data still needs to be cleaned —
+      // this migration runs once on next load and is otherwise a no-op.
+      const workType = kind === 'meeting' ? undefined : p.workType;
+      const focusNote = kind === 'meeting' ? undefined : p.focusNote;
       return {
         ...p,
         status: p.status ?? 'active',
-        kind: p.kind ?? 'work',
+        kind,
+        workType,
+        focusNote,
         createdAt: p.createdAt ?? Date.now(),
         bgClass: opt.bgClass,
         borderClass: opt.borderClass,

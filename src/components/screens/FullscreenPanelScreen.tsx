@@ -345,18 +345,26 @@ export function FullscreenPanelScreen() {
   // Auto-save each field into the shared draft store whenever it changes.
   // Effects run after paint so typing stays snappy, and the context write
   // is a no-op-shaped object spread — no network, no debouncing needed.
+  //
+  // The workType + focusNote effects bail for meeting panels: both
+  // useState slots default to non-empty values ('Coding' / ''), so
+  // without the guard the initial mount would clobber meeting instances
+  // with a stale work category on every open. Meeting panels carry
+  // meetingType / audience / topic instead and persist those below.
   useEffect(() => {
     updatePanel(panel.id, { color: selectedColor });
   }, [panel.id, selectedColor, updatePanel]);
   useEffect(() => {
+    if (isMeeting) return;
     updatePanel(panel.id, { workType: selectedWorkType });
-  }, [panel.id, selectedWorkType, updatePanel]);
+  }, [panel.id, isMeeting, selectedWorkType, updatePanel]);
   useEffect(() => {
     updatePanel(panel.id, { iconIndex: selectedIcon });
   }, [panel.id, selectedIcon, updatePanel]);
   useEffect(() => {
+    if (isMeeting) return;
     updatePanel(panel.id, { focusNote });
-  }, [panel.id, focusNote, updatePanel]);
+  }, [panel.id, isMeeting, focusNote, updatePanel]);
   useEffect(() => {
     updatePanel(panel.id, { notes });
   }, [panel.id, notes, updatePanel]);
