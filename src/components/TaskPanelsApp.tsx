@@ -362,14 +362,35 @@ export const TaskPanelsApp: React.FC<TaskPanelsAppProps> = ({ authUser }) => {
     // Override semantics: replace all historical runs for this panel with
     // a single synthetic run of length `ms`, ending "now". If the panel is
     // the active one, restart the in-flight run from now.
+    //
+    // Back-start trimming: when the slider is moved for the currently active
+    // panel, the implied start time (now - ms) is in the past. Any other
+    // panel whose run ends after that implied start overlaps — trim those
+    // runs back so time accounting stays consistent. This handles the "I
+    // should have switched 30 min ago" case: Panel A's banked run shrinks
+    // by the same amount Panel B was back-started.
     const safe = Math.max(0, Math.floor(ms));
     const now = Date.now();
+    const isActivePanel = activeTimerRef.current?.panelId === panelId;
     setRuns(prev => {
-      const kept = prev.filter(r => r.panelId !== panelId);
+      // Remove all existing runs for this panel.
+      const others = prev.filter(r => r.panelId !== panelId);
+
+      // When adjusting the active panel, trim overlapping runs from other panels.
+      const impliedStart = now - safe;
+      const trimmedOthers: Run[] = isActivePanel && safe > 0
+        ? others.flatMap(r => {
+            if (r.endedAt <= impliedStart) return [r]; // no overlap, keep as-is
+            const trimmedEnd = impliedStart;
+            if (trimmedEnd <= r.startedAt) return []; // fully consumed, drop
+            return [{ ...r, endedAt: trimmedEnd }];
+          })
+        : others;
+
       if (safe > 0) {
-        kept.push(makeRun(panelId, now - safe, now));
+        trimmedOthers.push(makeRun(panelId, impliedStart, now));
       }
-      return kept;
+      return trimmedOthers;
     });
     const cur = activeTimerRef.current;
     if (cur && cur.panelId === panelId) {
