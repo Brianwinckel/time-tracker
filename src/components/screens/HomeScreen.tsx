@@ -10,6 +10,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNav } from '../../lib/previewNav';
 import { AvatarBadge } from '../AvatarBadge';
+import { SummaryArchiveScreen } from './SummaryArchiveScreen';
 // Back-compat re-exports so any older imports still resolve.
 import {
   MOCK_PANELS,
@@ -46,8 +47,7 @@ export const HomeScreen: React.FC = () => {
     endMyDay,
     userProfile,
   } = useNav();
-  // Archive tab navigates away to summary-archive; Today is always the
-  // in-page view, so no tab state is needed.
+  const [activeTab, setActiveTab] = useState<'today' | 'archive'>('today');
 
   // Tick every second whenever anything on this screen is counting — a
   // running panel timer, or a break/lunch countdown.
@@ -256,17 +256,18 @@ export const HomeScreen: React.FC = () => {
 
         {/* Tab Bar */}
         <div className="bg-white border-b border-slate-100 px-8 flex items-center gap-1 shrink-0">
-          <button type="button" className="px-4 py-3 text-sm font-semibold border-b-2 text-slate-900 border-slate-900">
+          <button type="button" onClick={() => setActiveTab('today')} className={`px-4 py-3 text-sm font-semibold border-b-2 ${activeTab === 'today' ? 'text-slate-900 border-slate-900' : 'text-slate-400 border-transparent hover:text-slate-600'}`}>
             Today
           </button>
-          <button type="button" onClick={() => navigate('summary-archive')} className="px-4 py-3 text-sm font-semibold border-b-2 text-slate-400 border-transparent hover:text-slate-600">
+          <button type="button" onClick={() => setActiveTab('archive')} className={`px-4 py-3 text-sm font-semibold border-b-2 ${activeTab === 'archive' ? 'text-slate-900 border-slate-900' : 'text-slate-400 border-transparent hover:text-slate-600'}`}>
             Archive
           </button>
         </div>
 
         {/* Scrollable: Panel List + Right Sidebar */}
         <div className="flex-1 overflow-auto">
-          <div className="flex gap-6 p-6 max-w-[1200px]">
+          {activeTab === 'archive' && <SummaryArchiveScreen embedded />}
+          {activeTab === 'today' && <div className="flex gap-6 p-6 max-w-[1200px]">
             {/* Main Column */}
             <div className="flex-1 space-y-3">
               {isEmpty && (
@@ -410,7 +411,7 @@ export const HomeScreen: React.FC = () => {
               </div>
             </div>
             )}
-          </div>
+          </div>}
         </div>
       </div>
 
@@ -450,17 +451,18 @@ export const HomeScreen: React.FC = () => {
 
           {/* Tab Bar — inside header so it sticks too */}
           <div className="flex items-center gap-1 -mb-px">
-            <button type="button" className="px-4 py-2.5 text-sm font-semibold border-b-2 text-slate-900 border-slate-900">
+            <button type="button" onClick={() => setActiveTab('today')} className={`px-4 py-2.5 text-sm font-semibold border-b-2 ${activeTab === 'today' ? 'text-slate-900 border-slate-900' : 'text-slate-400 border-transparent'}`}>
               Today
             </button>
-            <button type="button" onClick={() => navigate('summary-archive')} className="px-4 py-2.5 text-sm font-semibold border-b-2 text-slate-400 border-transparent">
+            <button type="button" onClick={() => setActiveTab('archive')} className={`px-4 py-2.5 text-sm font-semibold border-b-2 ${activeTab === 'archive' ? 'text-slate-900 border-slate-900' : 'text-slate-400 border-transparent'}`}>
               Archive
             </button>
           </div>
         </header>
 
         {/* Scrollable content — natural flow, no nested overflow */}
-        <div className="px-4 py-4 space-y-3">
+        {activeTab === 'archive' && <SummaryArchiveScreen embedded />}
+        <div className={`px-4 py-4 space-y-3 ${activeTab === 'archive' ? 'hidden' : ''}`}>
           {isEmpty && (
             <div className="py-8 text-center">
               <h2 className="text-lg font-bold text-slate-700 mb-1.5">No panels yet</h2>
