@@ -643,7 +643,7 @@ export const PrepareSummaryScreen: React.FC = () => {
       icon: <svg className="w-4 h-4 text-blue-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></svg>,
     },
     {
-      id: 'claude', label: 'Claude Work Digest', labelShort: 'Claude', badge: '3 sessions', on: true,
+      id: 'claude', label: 'Claude Work Digest', labelShort: 'Claude', badge: '3 sessions', on: false,
       colorBg: 'bg-orange-50', colorBorder: 'border-orange-200', colorText: 'text-orange-700',
       colorBadgeBg: 'bg-orange-100', colorBadgeText: 'text-orange-400', colorCheck: 'text-orange-400',
       icon: <svg className="w-4 h-4 text-orange-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>,
