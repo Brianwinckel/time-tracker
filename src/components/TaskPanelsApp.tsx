@@ -474,7 +474,11 @@ export const TaskPanelsApp: React.FC<TaskPanelsAppProps> = ({ authUser }) => {
   );
 
   const removePanel = useCallback((id: string) => {
-    setPanelCatalog(prev => prev.filter(p => p.id !== id));
+    setPanelCatalog(prev => prev.map(p => p.id === id ? { ...p, status: 'archived' as const } : p));
+  }, []);
+
+  const restorePanel = useCallback((id: string) => {
+    setPanelCatalog(prev => prev.map(p => p.id === id ? { ...p, status: 'active' as const } : p));
   }, []);
 
   const updateCatalogPanel = useCallback(
@@ -705,6 +709,7 @@ export const TaskPanelsApp: React.FC<TaskPanelsAppProps> = ({ authUser }) => {
     panelCatalog,
     createPanel,
     removePanel,
+    restorePanel,
     updateCatalogPanel,
     panels,
     createPanelInstance,

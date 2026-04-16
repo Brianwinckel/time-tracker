@@ -149,6 +149,7 @@ export const PickPanelScreen: React.FC = () => {
     navigate,
     panelCatalog,
     removePanel,
+    restorePanel,
     createPanelInstance,
     createPanelAndStart,
     createMeetingInstance,
@@ -159,6 +160,10 @@ export const PickPanelScreen: React.FC = () => {
 
   const [creating, setCreating] = useState(false);
   const [confirmRemoveId, setConfirmRemoveId] = useState<string | null>(null);
+  const [archivedOpen, setArchivedOpen] = useState(false);
+
+  const activeCatalog = panelCatalog.filter(p => p.status !== 'archived');
+  const archivedCatalog = panelCatalog.filter(p => p.status === 'archived');
 
   // Tick every second so the live "Active · 1h 22m" counter updates
   // while the user is on this screen.
@@ -303,7 +308,7 @@ export const PickPanelScreen: React.FC = () => {
               </button>
             )}
 
-            {panelCatalog.length === 0 && !creating && (
+            {activeCatalog.length === 0 && !creating && (
               <div className="py-10 text-center">
                 <h2 className="text-lg font-bold text-slate-700 mb-1.5">No panels yet</h2>
                 <p className="text-sm text-slate-400 mb-4">
@@ -319,7 +324,7 @@ export const PickPanelScreen: React.FC = () => {
               </div>
             )}
 
-            {panelCatalog.map(panel => {
+            {activeCatalog.map(panel => {
               const isConfirming = confirmRemoveId === panel.id;
               const status = statusFor(panel.id);
               const totalMs = typeTotalMs(panel.id);
@@ -365,13 +370,13 @@ export const PickPanelScreen: React.FC = () => {
                   </button>
                   {isConfirming ? (
                     <div className="flex items-center gap-2 shrink-0 pl-2">
-                      <span className="text-xs font-medium text-slate-600">Remove?</span>
+                      <span className="text-xs font-medium text-slate-600">Archive?</span>
                       <button
                         type="button"
                         onClick={() => handleRemove(panel.id)}
-                        className="h-8 px-3 bg-rose-600 text-white text-xs font-semibold rounded-lg hover:bg-rose-700 transition-colors"
+                        className="h-8 px-3 bg-slate-700 text-white text-xs font-semibold rounded-lg hover:bg-slate-800 transition-colors"
                       >
-                        Delete
+                        Archive
                       </button>
                       <button
                         type="button"
@@ -385,8 +390,8 @@ export const PickPanelScreen: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setConfirmRemoveId(panel.id)}
-                      title="Remove panel"
-                      className="shrink-0 w-9 h-9 rounded-xl text-slate-400 hover:bg-white/60 hover:text-rose-600 transition-colors flex items-center justify-center"
+                      title="Archive panel"
+                      className="shrink-0 w-9 h-9 rounded-xl text-slate-400 hover:bg-white/60 hover:text-slate-600 transition-colors flex items-center justify-center"
                     >
                       <TrashIcon className="w-4 h-4" />
                     </button>
@@ -394,6 +399,45 @@ export const PickPanelScreen: React.FC = () => {
                 </div>
               );
             })}
+
+            {/* Archived panels — collapsible section at the bottom */}
+            {archivedCatalog.length > 0 && (
+              <div className="mt-4">
+                <button
+                  type="button"
+                  onClick={() => setArchivedOpen(o => !o)}
+                  className="w-full flex items-center gap-2 py-2 text-sm font-medium text-slate-400 hover:text-slate-600 transition-colors"
+                >
+                  <svg
+                    className={`w-4 h-4 transition-transform ${archivedOpen ? 'rotate-90' : ''}`}
+                    fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+                  >
+                    <path d="M9 5l7 7-7 7" />
+                  </svg>
+                  Archived Panels ({archivedCatalog.length})
+                </button>
+                {archivedOpen && (
+                  <div className="space-y-2 mt-2">
+                    {archivedCatalog.map(panel => (
+                      <div
+                        key={panel.id}
+                        className="bg-slate-50 rounded-2xl border border-slate-200 p-4 flex items-center gap-4 opacity-60"
+                      >
+                        <div className={`w-2 h-10 rounded-full ${panel.barClass} shrink-0`} />
+                        <p className="flex-1 text-sm font-semibold text-slate-600 truncate">{panel.name}</p>
+                        <button
+                          type="button"
+                          onClick={() => restorePanel(panel.id)}
+                          className="h-8 px-3 text-xs font-semibold text-slate-600 border border-slate-300 rounded-lg hover:bg-white transition-colors shrink-0"
+                        >
+                          Restore
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -458,7 +502,7 @@ export const PickPanelScreen: React.FC = () => {
             </button>
           )}
 
-          {panelCatalog.length === 0 && !creating && (
+          {activeCatalog.length === 0 && !creating && (
             <div className="py-8 text-center">
               <h2 className="text-base font-bold text-slate-700 mb-1.5">No panels yet</h2>
               <p className="text-xs text-slate-400 mb-4">
@@ -474,7 +518,7 @@ export const PickPanelScreen: React.FC = () => {
             </div>
           )}
 
-          {panelCatalog.map(panel => {
+          {activeCatalog.map(panel => {
             const isConfirming = confirmRemoveId === panel.id;
             const status = statusFor(panel.id);
             const totalMs = typeTotalMs(panel.id);
@@ -515,9 +559,9 @@ export const PickPanelScreen: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => handleRemove(panel.id)}
-                      className="h-8 px-2.5 bg-rose-600 text-white text-[11px] font-semibold rounded-lg"
+                      className="h-8 px-2.5 bg-slate-700 text-white text-[11px] font-semibold rounded-lg"
                     >
-                      Delete
+                      Archive
                     </button>
                     <button
                       type="button"
@@ -531,8 +575,8 @@ export const PickPanelScreen: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setConfirmRemoveId(panel.id)}
-                    title="Remove panel"
-                    className="shrink-0 w-8 h-8 rounded-lg text-slate-400 hover:text-rose-600 flex items-center justify-center"
+                    title="Archive panel"
+                    className="shrink-0 w-8 h-8 rounded-lg text-slate-400 hover:text-slate-600 flex items-center justify-center"
                   >
                     <TrashIcon className="w-4 h-4" />
                   </button>
@@ -540,6 +584,45 @@ export const PickPanelScreen: React.FC = () => {
               </div>
             );
           })}
+
+          {/* Archived panels — collapsible section at the bottom */}
+          {archivedCatalog.length > 0 && (
+            <div className="mt-3">
+              <button
+                type="button"
+                onClick={() => setArchivedOpen(o => !o)}
+                className="w-full flex items-center gap-2 py-2 text-xs font-medium text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                <svg
+                  className={`w-3.5 h-3.5 transition-transform ${archivedOpen ? 'rotate-90' : ''}`}
+                  fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+                >
+                  <path d="M9 5l7 7-7 7" />
+                </svg>
+                Archived ({archivedCatalog.length})
+              </button>
+              {archivedOpen && (
+                <div className="space-y-2 mt-1">
+                  {archivedCatalog.map(panel => (
+                    <div
+                      key={panel.id}
+                      className="bg-slate-50 rounded-2xl border border-slate-200 p-3 flex items-center gap-3 opacity-60"
+                    >
+                      <div className={`w-1.5 h-8 rounded-full ${panel.barClass} shrink-0`} />
+                      <p className="flex-1 text-sm font-semibold text-slate-600 truncate">{panel.name}</p>
+                      <button
+                        type="button"
+                        onClick={() => restorePanel(panel.id)}
+                        className="h-7 px-2.5 text-[11px] font-semibold text-slate-600 border border-slate-300 rounded-lg hover:bg-white transition-colors shrink-0"
+                      >
+                        Restore
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </>

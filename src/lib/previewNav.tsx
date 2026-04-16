@@ -67,9 +67,13 @@ type NavContextValue = {
   panelCatalog: MockPanel[];
   /** Create a new catalog entry (PanelType). */
   createPanel: (input: { name: string; colorId: string }) => MockPanel;
-  /** Remove a catalog entry. Live Panel instances of that type are left
-   *  alone — they keep their snapshotted visuals. */
+  /** Soft-archive a catalog entry. Live Panel instances of that type are
+   *  left alone — they keep their snapshotted visuals. Archived entries
+   *  are hidden from PickPanel but retained so historical reports can
+   *  resolve their names. */
   removePanel: (id: string) => void;
+  /** Restore a soft-archived catalog entry back to active. */
+  restorePanel: (id: string) => void;
   /** Rename or recolor an existing catalog entry. */
   updateCatalogPanel: (id: string, patch: { name?: string; colorId?: string }) => void;
 
@@ -191,6 +195,7 @@ export const useNav = (): NavContextValue => {
       panelCatalog: DEFAULT_PANELS,
       createPanel: () => null as unknown as MockPanel,
       removePanel: noop,
+      restorePanel: noop,
       updateCatalogPanel: noop,
       panels: [],
       createPanelInstance: () => null,

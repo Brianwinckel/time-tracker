@@ -33,6 +33,10 @@ export interface MockPanel {
    *  panelAccum + activeTimer, so this is not the source of truth. */
   time: string;
   isActive: boolean;
+  /** Soft-delete status. Archived panels are hidden from the picker and
+   *  home screen but retained in the catalog so historical reports can
+   *  resolve their names. Defaults to 'active'. */
+  status: 'active' | 'archived';
 }
 
 /** The palette a user can pick from when creating a new panel.
@@ -119,6 +123,7 @@ export function makePanel(input: { id?: string; name: string; colorId: string })
     completed: 0,
     time: '0:00:00',
     isActive: false,
+    status: 'active',
   };
 }
 
@@ -146,6 +151,7 @@ export function loadCatalog(): MockPanel[] {
       ...makePanel({ id: p.id, name: p.name ?? 'Untitled', colorId: p.color ?? 'blue' }),
       tasks: p.tasks ?? 0,
       completed: p.completed ?? 0,
+      status: (p.status === 'archived' ? 'archived' : 'active') as 'active' | 'archived',
     }));
   } catch {
     return DEFAULT_PANELS;
