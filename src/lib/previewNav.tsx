@@ -158,6 +158,14 @@ type NavContextValue = {
   preferences: AppPreferences;
   /** Update a single preference key. Persists immediately. */
   setPreference: <K extends keyof AppPreferences>(key: K, value: AppPreferences[K]) => void;
+
+  // ---- Historical report generation ----
+  /** ISO date the user wants to generate/edit a report for from the Archive.
+   *  Null means "today" (default prepare-summary behavior). Set by the
+   *  Archive's Generate Report button; cleared by PrepareSummaryScreen
+   *  after generating. */
+  pendingReportDate: string | null;
+  setPendingReportDate: (iso: string | null) => void;
 };
 
 const NavContext = createContext<NavContextValue | null>(null);
@@ -239,6 +247,8 @@ export const useNav = (): NavContextValue => {
       deleteSavedSummary: noop,
       preferences: DEFAULT_PREFERENCES,
       setPreference: noop,
+      pendingReportDate: null,
+      setPendingReportDate: noop,
     };
   }
   return ctx;

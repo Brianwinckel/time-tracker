@@ -428,18 +428,51 @@ export const PrepareSummaryScreen: React.FC = () => {
     saveSummary,
     runs,
     preferences,
+    savedSummaries,
+    pendingReportDate,
+    setPendingReportDate,
   } = useNav();
+
+  // When a pendingReportDate is set (user tapped "Generate report" from
+  // Archive on a past day), we reconstruct the panel list and date window
+  // from the raw runs log rather than from live state. Today = no override.
+  const isHistorical = pendingReportDate !== null;
+  const reportDate = pendingReportDate ?? null; // ISO or null
+
+  // For historical dates, derive the panel list from the runs log:
+  // find every unique panelId that has a run on that day, then look up
+  // the matching Panel instance. Panels deleted since then won't appear
+  // in the workstream editor, but their time still shows in the timeline.
+  const historicalPanels: Panel[] = useMemo(() => {
+    if (!reportDate) return [];
+    const [y, mo, d] = reportDate.split('-').map(Number);
+    const dayStart = new Date(y, mo - 1, d, 0, 0, 0, 0).getTime();
+    const dayEnd = new Date(y, mo - 1, d, 23, 59, 59, 999).getTime();
+    const panelIds = new Set<string>();
+    for (const r of runs) {
+      if (r.endedAt > dayStart && r.startedAt < dayEnd) {
+        panelIds.add(r.panelId);
+      }
+    }
+    // Filter to real panel instances (not sentinels like __break__).
+    return allPanels.filter(p => panelIds.has(p.id));
+  }, [reportDate, runs, allPanels]);
+
   // Live Panel instances from the day (both still-running and marked done
   // by "End My Day"). These drive the workstream list on this screen.
   const livePanels: Panel[] = useMemo(
-    () => allPanels,
-    [allPanels],
+    () => isHistorical ? historicalPanels : allPanels,
+    [isHistorical, historicalPanels, allPanels],
   );
   const activePanelIds = useMemo(
     () => livePanels.map(p => p.id),
     [livePanels],
   );
-  const goHome = () => navigate('home');
+  const goHome = () => {
+    // Clear the pending date so going back doesn't leave stale state.
+    if (isHistorical) setPendingReportDate(null);
+    navigate('home');
+  };
   // ---- Local state ----
   const [reportType, setReportType] = useState<ReportType>('daily');
   const [audience, setAudience] = useState<Audience>(preferences.defaultAudience);
@@ -473,7 +506,25 @@ export const PrepareSummaryScreen: React.FC = () => {
   }, [activeTimer, activeBreak]);
 
   // ---- Derive panel data from the real session ----
+  // For historical days, accumulate from the runs log clipped to that day
+  // rather than from panelAccum (which is all-time and today-biased).
+  const historicalAccum: Record<string, number> = useMemo(() => {
+    if (!reportDate) return {};
+    const [y, mo, d] = reportDate.split('-').map(Number);
+    const dayStart = new Date(y, mo - 1, d, 0, 0, 0, 0).getTime();
+    const dayEnd = new Date(y, mo - 1, d, 23, 59, 59, 999).getTime();
+    const acc: Record<string, number> = {};
+    for (const r of runs) {
+      if (r.endedAt <= dayStart || r.startedAt >= dayEnd) continue;
+      const s = Math.max(r.startedAt, dayStart);
+      const e = Math.min(r.endedAt, dayEnd);
+      acc[r.panelId] = (acc[r.panelId] ?? 0) + (e - s);
+    }
+    return acc;
+  }, [reportDate, runs]);
+
   const getPanelMs = (id: string): number => {
+    if (isHistorical) return historicalAccum[id] ?? 0;
     const accum = panelAccum[id] ?? 0;
     if (activeTimer && activeTimer.panelId === id) {
       return accum + (Date.now() - activeTimer.startedAt);
@@ -493,8 +544,16 @@ export const PrepareSummaryScreen: React.FC = () => {
     return parts.length > 0 ? parts.join(' → ') : 'No description yet';
   };
 
-  // Today's date in the two formats the header uses.
-  const now = new Date();
+  // For historical dates, the "now" reference point is the end of that day.
+  // This keeps date labels, range calculations, and run filtering correct.
+  const now = useMemo(() => {
+    if (reportDate) {
+      const [y, mo, d] = reportDate.split('-').map(Number);
+      return new Date(y, mo - 1, d, 23, 59, 59, 999);
+    }
+    return new Date();
+  }, [reportDate]);
+
   const dateLong = now.toLocaleDateString(undefined, {
     weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
   });
@@ -734,6 +793,8 @@ export const PrepareSummaryScreen: React.FC = () => {
     // is a no-op for non-daily kinds, so calling it unconditionally
     // is safe here.
     saveSummary(input);
+    // Clear the pending historical date — this generate() call consumed it.
+    setPendingReportDate(null);
     navigate(reportType === 'performance' ? 'performance-review' : 'daily-summary');
   };
 

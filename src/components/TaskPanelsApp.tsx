@@ -635,6 +635,7 @@ export const TaskPanelsApp: React.FC<TaskPanelsAppProps> = ({ authUser }) => {
 
   // ---- Summary snapshot ----
   const [currentSummary, setCurrentSummary] = useState<SummaryInput | null>(null);
+  const [pendingReportDate, setPendingReportDate] = useState<string | null>(null);
 
   // ---- Saved summaries archive ----
   // Per-date archive of daily reports the user has generated.
@@ -740,6 +741,8 @@ export const TaskPanelsApp: React.FC<TaskPanelsAppProps> = ({ authUser }) => {
     deleteSavedSummary,
     preferences,
     setPreference,
+    pendingReportDate,
+    setPendingReportDate,
   };
 
   // Onboarding — fullscreen, no sidebar/nav, no NavProvider needed

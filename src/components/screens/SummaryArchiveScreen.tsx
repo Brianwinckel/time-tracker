@@ -64,7 +64,7 @@ interface SummaryArchiveScreenProps {
 }
 
 export const SummaryArchiveScreen: React.FC<SummaryArchiveScreenProps> = ({ embedded }) => {
-  const { navigate, runs, panels, savedSummaries, deleteSavedSummary } = useNav();
+  const { navigate, runs, panels, savedSummaries, deleteSavedSummary, setPendingReportDate } = useNav();
 
   // Which day's summary is currently rendered. Starts on today.
   const [selectedIso, setSelectedIso] = useState<string>(() => todayIso());
@@ -449,20 +449,23 @@ export const SummaryArchiveScreen: React.FC<SummaryArchiveScreenProps> = ({ embe
               </ul>
             </section>
 
-            {/* ----- CTA back to the prepare flow -----
-                For *today*, let the user jump into the formal Prepare
-                Summary flow (audience, style, generate). The archive
-                is meant for browsing; Prepare is for composing. When
-                there's already a saved report for today, the CTA
-                flips to "Update" so the user knows re-generating will
-                overwrite what's in the archive. */}
-            {isToday && !isBreakOnly(workEntries.length) && (
+            {/* ----- CTA: generate / update report for any day with data -----
+                For today: jump to prepare-summary (no date override needed,
+                it uses live panels/state as usual).
+                For past days: set pendingReportDate so PrepareSummaryScreen
+                knows which day to reconstruct, then navigate there. */}
+            {!isBreakOnly(workEntries.length) && (
               <button
                 type="button"
-                onClick={() => navigate('prepare-summary')}
+                onClick={() => {
+                  if (!isToday) setPendingReportDate(selectedIso);
+                  navigate('prepare-summary');
+                }}
                 className="w-full px-4 py-3 bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold rounded-xl flex items-center justify-center gap-2"
               >
-                {savedData ? "Update today's report" : "Generate today's report"}
+                {savedData
+                  ? isToday ? "Update today's report" : "Update report"
+                  : isToday ? "Generate today's report" : "Generate report"}
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
                   <path d="M13 7l5 5m0 0l-5 5m5-5H6" />
                 </svg>
