@@ -1578,17 +1578,6 @@ const SettingsDefaultView: React.FC = () => {
             ),
           },
           {
-            id: 'week' as const,
-            label: 'This Week',
-            description: 'Weekly summary of your tracked sessions.',
-            icon: (
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
-              </svg>
-            ),
-            soon: true,
-          },
-          {
             id: 'archive' as const,
             label: 'Archive',
             description: 'Historical reports and saved summaries.',

@@ -45,9 +45,9 @@ export const HomeScreen: React.FC = () => {
     breakAccum,
     endMyDay,
     userProfile,
-    preferences,
   } = useNav();
-  const [activeTab, setActiveTab] = useState<'today' | 'week' | 'archive'>(preferences.defaultHomeTab);
+  // Archive tab navigates away to summary-archive; Today is always the
+  // in-page view, so no tab state is needed.
 
   // Tick every second whenever anything on this screen is counting — a
   // running panel timer, or a break/lunch countdown.
@@ -256,16 +256,12 @@ export const HomeScreen: React.FC = () => {
 
         {/* Tab Bar */}
         <div className="bg-white border-b border-slate-100 px-8 flex items-center gap-1 shrink-0">
-          {([['today', 'Today'], ['week', 'This Week'], ['archive', 'Archive']] as const).map(([id, label]) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => setActiveTab(id)}
-              className={`px-4 py-3 text-sm font-semibold border-b-2 ${activeTab === id ? 'text-slate-900 border-slate-900' : 'text-slate-400 border-transparent hover:text-slate-600'}`}
-            >
-              {label}
-            </button>
-          ))}
+          <button type="button" className="px-4 py-3 text-sm font-semibold border-b-2 text-slate-900 border-slate-900">
+            Today
+          </button>
+          <button type="button" onClick={() => navigate('summary-archive')} className="px-4 py-3 text-sm font-semibold border-b-2 text-slate-400 border-transparent hover:text-slate-600">
+            Archive
+          </button>
         </div>
 
         {/* Scrollable: Panel List + Right Sidebar */}
@@ -454,16 +450,12 @@ export const HomeScreen: React.FC = () => {
 
           {/* Tab Bar — inside header so it sticks too */}
           <div className="flex items-center gap-1 -mb-px">
-            {([['today', 'Today'], ['week', 'This Week'], ['archive', 'Archive']] as const).map(([id, label]) => (
-              <button
-                key={id}
-                type="button"
-                onClick={() => setActiveTab(id)}
-                className={`px-4 py-2.5 text-sm font-semibold border-b-2 ${activeTab === id ? 'text-slate-900 border-slate-900' : 'text-slate-400 border-transparent'}`}
-              >
-                {label}
-              </button>
-            ))}
+            <button type="button" className="px-4 py-2.5 text-sm font-semibold border-b-2 text-slate-900 border-slate-900">
+              Today
+            </button>
+            <button type="button" onClick={() => navigate('summary-archive')} className="px-4 py-2.5 text-sm font-semibold border-b-2 text-slate-400 border-transparent">
+              Archive
+            </button>
           </div>
         </header>
 

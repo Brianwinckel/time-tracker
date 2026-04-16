@@ -11,7 +11,7 @@
 export type TimeFormat = '12h' | '24h';
 
 /** Which tab Home opens to by default. */
-export type HomeTab = 'today' | 'week' | 'archive';
+export type HomeTab = 'today' | 'archive';
 
 /** Default audience for summary generation. */
 export type DefaultAudience = 'manager' | 'team' | 'client' | 'personal';
@@ -116,7 +116,7 @@ export const DEFAULT_PREFERENCES: AppPreferences = {
 };
 
 const VALID_TIME_FORMATS: TimeFormat[] = ['12h', '24h'];
-const VALID_HOME_TABS: HomeTab[] = ['today', 'week', 'archive'];
+const VALID_HOME_TABS: HomeTab[] = ['today', 'archive'];
 const VALID_AUDIENCES: DefaultAudience[] = ['manager', 'team', 'client', 'personal'];
 const VALID_SUMMARY_STYLES: DefaultSummaryStyle[] = ['concise', 'standard', 'detailed'];
 
