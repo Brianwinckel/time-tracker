@@ -8,6 +8,7 @@
 // ============================================================
 
 import React, { useEffect, useState } from 'react';
+import { useSwipe } from '../../hooks/useSwipe';
 import { useNav } from '../../lib/previewNav';
 import { AvatarBadge } from '../AvatarBadge';
 import { SummaryArchiveScreen } from './SummaryArchiveScreen';
@@ -48,6 +49,9 @@ export const HomeScreen: React.FC = () => {
     userProfile,
   } = useNav();
   const [activeTab, setActiveTab] = useState<'today' | 'archive'>('today');
+
+  // Swipe left on Today → switch to Archive (mobile tab navigation).
+  const todaySwipe = useSwipe({ onSwipeLeft: () => setActiveTab('archive') });
 
   // Tick every second whenever anything on this screen is counting — a
   // running panel timer, or a break/lunch countdown.
@@ -462,7 +466,7 @@ export const HomeScreen: React.FC = () => {
 
         {/* Scrollable content — natural flow, no nested overflow */}
         {activeTab === 'archive' && <SummaryArchiveScreen embedded />}
-        <div className={`px-4 py-4 space-y-3 ${activeTab === 'archive' ? 'hidden' : ''}`}>
+        <div className={`px-4 py-4 space-y-3 ${activeTab === 'archive' ? 'hidden' : ''}`} {...todaySwipe}>
           {isEmpty && (
             <div className="py-8 text-center">
               <h2 className="text-lg font-bold text-slate-700 mb-1.5">No panels yet</h2>

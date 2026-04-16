@@ -30,6 +30,7 @@
 // ============================================================
 
 import React, { useMemo, useState } from 'react';
+import { useSwipe } from '../../hooks/useSwipe';
 import { useNav } from '../../lib/previewNav';
 import {
   addDaysIso,
@@ -178,8 +179,14 @@ export const SummaryArchiveScreen: React.FC<SummaryArchiveScreenProps> = ({ embe
   };
   const goToday = () => setSelectedIso(today);
 
+  // Swipe left → next day, swipe right → prev day (mobile only).
+  const swipeHandlers = useSwipe({ onSwipeLeft: goNext, onSwipeRight: goPrev });
+
   return (
-    <div className={embedded ? 'bg-slate-50 w-full' : 'flex-1 overflow-auto bg-slate-50'}>
+    <div
+      className={embedded ? 'bg-slate-50 w-full' : 'flex-1 overflow-auto bg-slate-50'}
+      {...swipeHandlers}
+    >
       {!embedded && (
         <header className="bg-white border-b border-slate-100 sticky top-0 z-10">
           <div className="max-w-3xl mx-auto px-4 md:px-8 py-4 flex items-center gap-3">
