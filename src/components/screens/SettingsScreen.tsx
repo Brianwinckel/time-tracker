@@ -1024,13 +1024,17 @@ const SettingsProjects: React.FC = () => {
 // ============================================================
 
 const SettingsPanels: React.FC = () => {
-  const { panelCatalog, updateCatalogPanel, removePanel, createPanel } = useNav();
+  const { panelCatalog, updateCatalogPanel, removePanel, restorePanel, createPanel } = useNav();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [editColor, setEditColor] = useState('');
   const [showNew, setShowNew] = useState(false);
   const [newName, setNewName] = useState('');
   const [newColor, setNewColor] = useState('blue');
+  const [archivedOpen, setArchivedOpen] = useState(false);
+
+  const activeCatalog = panelCatalog.filter(p => p.status !== 'archived');
+  const archivedCatalog = panelCatalog.filter(p => p.status === 'archived');
 
   const startEdit = (p: { id: string; name: string; color: string }) => {
     setEditingId(p.id);
@@ -1043,11 +1047,9 @@ const SettingsPanels: React.FC = () => {
     }
     setEditingId(null);
   };
-  const handleDelete = (id: string, name: string) => {
-    if (window.confirm(`Delete "${name}" template? Live panels using it will keep working.`)) {
-      removePanel(id);
-      if (editingId === id) setEditingId(null);
-    }
+  const handleArchive = (id: string) => {
+    removePanel(id);
+    if (editingId === id) setEditingId(null);
   };
   const handleCreate = () => {
     if (!newName.trim()) return;
@@ -1072,8 +1074,8 @@ const SettingsPanels: React.FC = () => {
       }
     >
       <p className="text-sm text-slate-500 mb-6">
-        Manage the panel templates you pick from on Home. Renaming or removing a
-        template doesn't affect live panel instances already on your board.
+        Manage the panel templates you pick from on Home. Archiving a template
+        hides it from the picker but preserves its name in historical reports.
       </p>
 
       {/* New panel form */}
@@ -1124,9 +1126,9 @@ const SettingsPanels: React.FC = () => {
         </div>
       )}
 
-      {/* Panel list */}
+      {/* Active panel list */}
       <ul className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-        {panelCatalog.map(p => (
+        {activeCatalog.map(p => (
           <li
             key={p.id}
             className="border-b border-slate-100 last:border-b-0 px-4 py-3.5"
@@ -1189,23 +1191,66 @@ const SettingsPanels: React.FC = () => {
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleDelete(p.id, p.name)}
-                  className="text-xs text-slate-400 hover:text-red-500 px-2 py-1"
+                  onClick={() => handleArchive(p.id)}
+                  className="text-xs text-slate-400 hover:text-slate-700 px-2 py-1"
                 >
-                  Delete
+                  Archive
                 </button>
               </div>
             )}
           </li>
         ))}
-        {panelCatalog.length === 0 && (
+        {activeCatalog.length === 0 && (
           <li className="px-5 py-6 text-center text-sm text-slate-400">
-            No panel templates yet. Tap "+ New" to create one.
+            No active panel templates. Tap "+ New" to create one.
           </li>
         )}
       </ul>
+
+      {/* Archived panels — collapsible */}
+      {archivedCatalog.length > 0 && (
+        <div className="mt-4">
+          <button
+            type="button"
+            onClick={() => setArchivedOpen(o => !o)}
+            className="flex items-center gap-1.5 text-xs font-medium text-slate-400 hover:text-slate-600 transition-colors mb-2"
+          >
+            <svg
+              className={`w-3.5 h-3.5 transition-transform ${archivedOpen ? 'rotate-90' : ''}`}
+              fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+            >
+              <path d="M9 5l7 7-7 7" />
+            </svg>
+            Archived ({archivedCatalog.length})
+          </button>
+          {archivedOpen && (
+            <ul className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+              {archivedCatalog.map(p => (
+                <li
+                  key={p.id}
+                  className="border-b border-slate-100 last:border-b-0 px-4 py-3.5"
+                >
+                  <div className="flex items-center gap-3 opacity-50">
+                    <span className={`w-3 h-3 rounded-full ${p.barClass} shrink-0`} aria-hidden />
+                    <span className="text-sm font-semibold text-slate-700 flex-1 truncate">{p.name}</span>
+                    <button
+                      type="button"
+                      onClick={() => restorePanel(p.id)}
+                      className="text-xs font-semibold text-blue-600 hover:text-blue-800 px-2 py-1"
+                    >
+                      Restore
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
       <p className="mt-4 text-[11px] text-slate-400">
-        {panelCatalog.length} template{panelCatalog.length !== 1 ? 's' : ''} in your catalog.
+        {activeCatalog.length} active template{activeCatalog.length !== 1 ? 's' : ''}
+        {archivedCatalog.length > 0 ? ` · ${archivedCatalog.length} archived` : ''}.
       </p>
     </SettingsShell>
   );
