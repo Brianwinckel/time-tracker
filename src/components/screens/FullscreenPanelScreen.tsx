@@ -774,7 +774,8 @@ export function FullscreenPanelScreen() {
               Customize Panel
             </summary>
             <div className="mt-3 bg-slate-50 rounded-2xl border border-slate-100 p-4 space-y-3">
-              {/* Color picker */}
+              {/* Color picker — hidden for meetings (color is locked to slate) */}
+              {panel.kind !== 'meeting' && (
               <div>
                 <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block mb-2">Color</label>
                 <div className="flex items-center gap-2">
@@ -789,7 +790,9 @@ export function FullscreenPanelScreen() {
                   ))}
                 </div>
               </div>
-              {/* Icon picker */}
+              )}
+              {/* Icon picker — hidden for meetings (icon is locked to the meeting icon) */}
+              {panel.kind !== 'meeting' && (
               <div>
                 <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block mb-2">Icon</label>
                 <div className="flex items-center gap-1.5">
@@ -807,6 +810,7 @@ export function FullscreenPanelScreen() {
                   ))}
                 </div>
               </div>
+              )}
             </div>
           </details>
 
@@ -1099,7 +1103,8 @@ export function FullscreenPanelScreen() {
                 ></textarea>
               </div>
 
-              {/* Customize Panel (collapsed) */}
+              {/* Customize Panel (collapsed) — hidden entirely for meetings */}
+              {panel.kind !== 'meeting' && (
               <details className="group">
                 <summary className="flex items-center gap-1.5 cursor-pointer text-[10px] font-semibold uppercase tracking-wider text-slate-300 hover:text-slate-400 list-none">
                   <svg className="w-3 h-3 transition-transform group-open:rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -1143,6 +1148,7 @@ export function FullscreenPanelScreen() {
                   </div>
                 </div>
               </details>
+              )}
 
               <div className="h-4"></div>
             </div>
