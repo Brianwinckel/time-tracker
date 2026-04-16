@@ -32,25 +32,33 @@ const hexFor = (name: string): string => COLOR_HEX_BY_NAME[name] ?? '#64748b';
 
 // ---- Types ----
 
-type ReportType = 'daily' | 'performance';
 type Audience = 'manager' | 'team' | 'client' | 'personal';
 type SummaryStyle = 'concise' | 'standard' | 'detailed';
 type PanelOutcome = 'completed' | 'in-progress' | 'blocked' | 'review' | 'follow-up' | 'abandoned';
 
-// ---- Performance Review date range presets ----
+// ---- Report range presets ----
 //
-// Friction-free date picking — the user just taps a preset instead of
-// fiddling with a calendar. Each preset resolves against "today" at the
-// moment the screen is rendered, so Q1 always means Jan 1 → Mar 31 of
-// the current year, YTD = Jan 1 → today, etc.
+// One unified picker for the report window. "Today" is the default and
+// routes to the Daily Summary view; every other preset (and Custom)
+// routes to the Performance Review view. This replaced a separate
+// Report Type toggle + conditional Date Range section.
+//
+// Each preset resolves against "today" at the moment the screen is
+// rendered, so Q1 always means Jan 1 → Mar 31 of the current year,
+// YTD = Jan 1 → today, etc.
 
 type RangePresetId =
+  | 'today'
   | 'last7' | 'last30'
   | 'thisMonth' | 'lastMonth'
   | 'q1' | 'q2' | 'q3' | 'q4'
-  | 'ytd' | 'lastYear';
+  | 'ytd' | 'lastYear'
+  | 'custom';
 
-const RANGE_PRESETS: { id: RangePresetId; label: string; labelShort: string }[] = [
+// Past-range presets shown as chips below the Today card. "today" and
+// "custom" are rendered separately (Today = hero card, Custom = inline
+// date picker) so they aren't in this list.
+const PAST_RANGE_PRESETS: { id: RangePresetId; label: string; labelShort: string }[] = [
   { id: 'last7',     label: 'Last 7 days',  labelShort: '7d'   },
   { id: 'last30',    label: 'Last 30 days', labelShort: '30d'  },
   { id: 'thisMonth', label: 'This month',   labelShort: 'MTD'  },
@@ -63,11 +71,16 @@ const RANGE_PRESETS: { id: RangePresetId; label: string; labelShort: string }[] 
   { id: 'lastYear',  label: 'Last year',    labelShort: 'Last Y' },
 ];
 
-function resolveRange(preset: RangePresetId, today: Date): { start: Date; end: Date } {
+function resolveRange(
+  preset: RangePresetId,
+  today: Date,
+  custom: { start: Date; end: Date },
+): { start: Date; end: Date } {
   const y = today.getFullYear();
   const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
   const endOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999);
   switch (preset) {
+    case 'today':     return { start: startOfDay(today), end: endOfDay(today) };
     case 'last7':     return { start: startOfDay(new Date(y, today.getMonth(), today.getDate() - 6)), end: endOfDay(today) };
     case 'last30':    return { start: startOfDay(new Date(y, today.getMonth(), today.getDate() - 29)), end: endOfDay(today) };
     case 'thisMonth': return { start: new Date(y, today.getMonth(), 1), end: endOfDay(today) };
@@ -82,8 +95,23 @@ function resolveRange(preset: RangePresetId, today: Date): { start: Date; end: D
     case 'q4': return { start: new Date(y, 9, 1), end: endOfDay(new Date(y, 11, 31)) };
     case 'ytd': return { start: new Date(y, 0, 1), end: endOfDay(today) };
     case 'lastYear': return { start: new Date(y - 1, 0, 1), end: endOfDay(new Date(y - 1, 11, 31)) };
+    case 'custom': return { start: startOfDay(custom.start), end: endOfDay(custom.end) };
   }
 }
+
+// Date ↔ <input type="date"> helpers. HTML date inputs speak
+// ISO-8601 YYYY-MM-DD, which we also want to treat as local time (not
+// UTC) so "2026-04-15" doesn't round-trip to Apr 14 in PT timezones.
+const toISODateLocal = (d: Date): string => {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const dy = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${dy}`;
+};
+const fromISODateLocal = (s: string): Date => {
+  const [y, m, d] = s.split('-').map(Number);
+  return new Date(y, m - 1, d);
+};
 
 function formatRange({ start, end }: { start: Date; end: Date }): string {
   const opts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' };
@@ -474,12 +502,32 @@ export const PrepareSummaryScreen: React.FC = () => {
     navigate('home');
   };
   // ---- Local state ----
-  const [reportType, setReportType] = useState<ReportType>('daily');
   const [audience, setAudience] = useState<Audience>(preferences.defaultAudience);
   const [summaryStyle, setSummaryStyle] = useState<SummaryStyle>(preferences.defaultSummaryStyle);
-  const [rangePreset, setRangePreset] = useState<RangePresetId>('last30');
-  const resolvedRange = useMemo(() => resolveRange(rangePreset, new Date()), [rangePreset]);
+  // Default to 'today' — the common case is a daily wrap-up. Any other
+  // preset routes to the Performance Review view; there is no separate
+  // Report Type toggle anymore.
+  const [rangePreset, setRangePreset] = useState<RangePresetId>('today');
+  // Custom range defaults to last 7 days → today. Only surfaced when
+  // the user picks the "Custom..." chip.
+  const [customStart, setCustomStart] = useState<Date>(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 6);
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  });
+  const [customEnd, setCustomEnd] = useState<Date>(() => {
+    const d = new Date();
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  });
+  const resolvedRange = useMemo(
+    () => resolveRange(rangePreset, new Date(), { start: customStart, end: customEnd }),
+    [rangePreset, customStart, customEnd],
+  );
   const rangeLabel = formatRange(resolvedRange);
+  // "today" is the only preset that produces a Daily Summary — every
+  // other preset (including Custom spanning a single day) goes to
+  // Performance Review so multi-day affordances are always available.
+  const isDaily = rangePreset === 'today';
 
   // Edits overlay — keyed by panel id, seeded lazily when a panel first
   // appears on this screen so re-visiting preserves what the user entered.
@@ -659,6 +707,15 @@ export const PrepareSummaryScreen: React.FC = () => {
     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M15 19l-7-7 7-7" /></svg>
   );
 
+  const CalendarIcon = ({ className = 'w-5 h-5' }: { className?: string }) => (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="4" width="18" height="18" rx="2" />
+      <line x1="16" y1="2" x2="16" y2="6" />
+      <line x1="8" y1="2" x2="8" y2="6" />
+      <line x1="3" y1="10" x2="21" y2="10" />
+    </svg>
+  );
+
   const BoltIcon = ({ className = 'w-5 h-5' }: { className?: string }) => (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
   );
@@ -722,13 +779,13 @@ export const PrepareSummaryScreen: React.FC = () => {
       };
     }
 
-    // The report window. Daily = today; Performance = resolved preset range.
+    // The report window. isDaily → today (label = full weekday date);
+    // otherwise → the resolved preset/custom range.
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-    const dateRange =
-      reportType === 'performance'
-        ? { start: resolvedRange.start, end: resolvedRange.end, label: rangeLabel }
-        : { start: todayStart, end: todayEnd, label: dateLong };
+    const dateRange = isDaily
+      ? { start: todayStart, end: todayEnd, label: dateLong }
+      : { start: resolvedRange.start, end: resolvedRange.end, label: rangeLabel };
 
     // External digests — only surface the ones whose source card is toggled on.
     // Today these are placeholder summaries; when the ingestion pipeline is
@@ -769,7 +826,7 @@ export const PrepareSummaryScreen: React.FC = () => {
       : runs;
 
     const input = buildSummaryInput({
-      reportKind: reportType as ReportKind,
+      reportKind: (isDaily ? 'daily' : 'performance') as ReportKind,
       audience: audience as SummaryAudience,
       style: summaryStyle as SummaryStyleKind,
       dateRange,
@@ -795,7 +852,7 @@ export const PrepareSummaryScreen: React.FC = () => {
     saveSummary(input);
     // Clear the pending historical date — this generate() call consumed it.
     setPendingReportDate(null);
-    navigate(reportType === 'performance' ? 'performance-review' : 'daily-summary');
+    navigate(isDaily ? 'daily-summary' : 'performance-review');
   };
 
 
@@ -830,57 +887,118 @@ export const PrepareSummaryScreen: React.FC = () => {
         <div className="flex-1 overflow-auto hide-scrollbar">
           <div className="max-w-3xl mx-auto px-8 py-8 space-y-8">
 
-            {/* ═══ Report Type Toggle ═══ */}
+            {/* ═══ Report Range ═══
+                One unified picker replaces the old Report Type toggle +
+                conditional Date Range section. Today = daily summary;
+                any other preset / custom range = performance review. */}
             <div>
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3">Report Type</h2>
-              <div className="inline-flex bg-slate-100 rounded-xl p-1 gap-1">
-                <button
-                  onClick={() => setReportType('daily')}
-                  className={`report-type px-5 py-2.5 rounded-lg text-sm font-semibold ${
-                    reportType === 'daily' ? 'active' : 'text-slate-500'
-                  }`}
-                >
-                  Daily Summary
-                </button>
-                <button
-                  onClick={() => setReportType('performance')}
-                  className={`report-type px-5 py-2.5 rounded-lg text-sm font-semibold ${
-                    reportType === 'performance' ? 'active' : 'text-slate-500'
-                  }`}
-                >
-                  Performance Review
-                </button>
+              <div className="flex items-baseline justify-between mb-3">
+                <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400">Report Range</h2>
+                <span className="text-xs text-slate-500 tabular-nums">{isDaily ? dateLong : rangeLabel}</span>
               </div>
-            </div>
 
-            {/* ═══ Date Range (Performance Review only) ═══ */}
-            {reportType === 'performance' && (
-              <div>
-                <div className="flex items-baseline justify-between mb-3">
-                  <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400">Date Range</h2>
-                  <span className="text-xs text-slate-500 tabular-nums">{rangeLabel}</span>
+              {/* Today — the hero card. Larger, icon on a filled tile,
+                  shows the tracked time inline so the user can see
+                  there's something to report on without guessing. */}
+              <button
+                type="button"
+                onClick={() => setRangePreset('today')}
+                className={`w-full rounded-2xl border-2 p-4 text-left transition-colors ${
+                  isDaily
+                    ? 'border-blue-500 bg-blue-50'
+                    : 'border-slate-200 bg-white hover:border-slate-300'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${
+                    isDaily ? 'bg-blue-500 text-white' : 'bg-slate-100 text-slate-500'
+                  }`}>
+                    <CalendarIcon className="w-5 h-5" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className={`text-base font-bold ${isDaily ? 'text-blue-700' : 'text-slate-900'}`}>Today</p>
+                      <span className={`text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded ${
+                        isDaily ? 'bg-blue-500 text-white' : 'bg-slate-100 text-slate-500'
+                      }`}>Daily Summary</span>
+                    </div>
+                    <p className={`text-xs mt-0.5 ${isDaily ? 'text-blue-600' : 'text-slate-500'}`}>
+                      {dateLong} · <span className="font-mono tabular-nums">{formatHM(totalTrackedMs)}</span> tracked
+                    </p>
+                  </div>
+                  {isDaily && <CheckIcon className="w-5 h-5 text-blue-600 shrink-0" />}
                 </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {RANGE_PRESETS.map(p => {
-                    const selected = rangePreset === p.id;
-                    return (
-                      <button
-                        key={p.id}
-                        type="button"
-                        onClick={() => setRangePreset(p.id)}
-                        className={`px-3.5 py-2 rounded-lg border text-xs font-medium transition-colors ${
-                          selected
-                            ? 'border-slate-900 bg-slate-900 text-white'
-                            : 'border-slate-200 bg-white text-slate-500 hover:text-slate-700 hover:border-slate-300'
-                        }`}
-                      >
-                        {p.label}
-                      </button>
-                    );
-                  })}
-                </div>
+              </button>
+
+              {/* Divider — "Or a past range" */}
+              <div className="flex items-center gap-3 my-4">
+                <div className="flex-1 h-px bg-slate-200" />
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Or a past range · Performance Review</span>
+                <div className="flex-1 h-px bg-slate-200" />
               </div>
-            )}
+
+              {/* Past-range chips + Custom trigger */}
+              <div className="flex flex-wrap gap-1.5">
+                {PAST_RANGE_PRESETS.map(p => {
+                  const selected = rangePreset === p.id;
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => setRangePreset(p.id)}
+                      className={`px-3.5 py-2 rounded-lg border text-xs font-medium transition-colors ${
+                        selected
+                          ? 'border-slate-900 bg-slate-900 text-white'
+                          : 'border-slate-200 bg-white text-slate-500 hover:text-slate-700 hover:border-slate-300'
+                      }`}
+                    >
+                      {p.label}
+                    </button>
+                  );
+                })}
+                <button
+                  type="button"
+                  onClick={() => setRangePreset('custom')}
+                  className={`px-3.5 py-2 rounded-lg border text-xs font-medium transition-colors inline-flex items-center gap-1.5 ${
+                    rangePreset === 'custom'
+                      ? 'border-slate-900 bg-slate-900 text-white'
+                      : 'border-slate-200 bg-white text-slate-500 hover:text-slate-700 hover:border-slate-300'
+                  }`}
+                >
+                  <CalendarIcon className="w-3.5 h-3.5" />
+                  Custom…
+                </button>
+              </div>
+
+              {/* Custom date inputs, only when custom is selected */}
+              {rangePreset === 'custom' && (
+                <div className="mt-3 p-4 rounded-xl border border-slate-200 bg-slate-50">
+                  <div className="grid grid-cols-2 gap-3">
+                    <label className="block">
+                      <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 block mb-1">From</span>
+                      <input
+                        type="date"
+                        value={toISODateLocal(customStart)}
+                        max={toISODateLocal(customEnd)}
+                        onChange={e => setCustomStart(fromISODateLocal(e.target.value))}
+                        className="w-full h-10 px-3 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 outline-none focus:border-slate-400"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 block mb-1">To</span>
+                      <input
+                        type="date"
+                        value={toISODateLocal(customEnd)}
+                        min={toISODateLocal(customStart)}
+                        max={toISODateLocal(new Date())}
+                        onChange={e => setCustomEnd(fromISODateLocal(e.target.value))}
+                        className="w-full h-10 px-3 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 outline-none focus:border-slate-400"
+                      />
+                    </label>
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* ═══ Included Sources ═══ */}
             <div>
@@ -1002,57 +1120,113 @@ export const PrepareSummaryScreen: React.FC = () => {
         {/* Mobile Scrollable Content */}
         <div className="flex-1 overflow-auto hide-scrollbar px-4 py-5 space-y-5">
 
-          {/* Report Type */}
+          {/* Report Range — unified picker (mobile) */}
           <div>
-            <h2 className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-2">Report Type</h2>
-            <div className="inline-flex bg-slate-100 rounded-lg p-0.5 gap-0.5">
-              <button
-                onClick={() => setReportType('daily')}
-                className={`report-type px-4 py-2 rounded-md text-xs font-semibold ${
-                  reportType === 'daily' ? 'active' : 'text-slate-500'
-                }`}
-              >
-                Daily Summary
-              </button>
-              <button
-                onClick={() => setReportType('performance')}
-                className={`report-type px-4 py-2 rounded-md text-xs font-semibold ${
-                  reportType === 'performance' ? 'active' : 'text-slate-500'
-                }`}
-              >
-                Performance Review
-              </button>
+            <div className="flex items-baseline justify-between mb-2">
+              <h2 className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Report Range</h2>
+              <span className="text-[10px] text-slate-500 tabular-nums">{isDaily ? dateShort : rangeLabel}</span>
             </div>
-          </div>
 
-          {/* Date Range (Performance Review only) */}
-          {reportType === 'performance' && (
-            <div>
-              <div className="flex items-baseline justify-between mb-2">
-                <h2 className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Date Range</h2>
-                <span className="text-[10px] text-slate-500 tabular-nums">{rangeLabel}</span>
+            {/* Today — featured card */}
+            <button
+              type="button"
+              onClick={() => setRangePreset('today')}
+              className={`w-full rounded-xl border-2 p-3 text-left transition-colors ${
+                isDaily
+                  ? 'border-blue-500 bg-blue-50'
+                  : 'border-slate-200 bg-white'
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
+                  isDaily ? 'bg-blue-500 text-white' : 'bg-slate-100 text-slate-500'
+                }`}>
+                  <CalendarIcon className="w-4 h-4" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <p className={`text-sm font-bold ${isDaily ? 'text-blue-700' : 'text-slate-900'}`}>Today</p>
+                    <span className={`text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded ${
+                      isDaily ? 'bg-blue-500 text-white' : 'bg-slate-100 text-slate-500'
+                    }`}>Daily</span>
+                  </div>
+                  <p className={`text-[11px] ${isDaily ? 'text-blue-600' : 'text-slate-500'}`}>
+                    {dateShort} · <span className="font-mono tabular-nums">{formatHM(totalTrackedMs)}</span> tracked
+                  </p>
+                </div>
+                {isDaily && <CheckIcon className="w-4 h-4 text-blue-600 shrink-0" />}
               </div>
-              <div className="flex flex-wrap gap-1">
-                {RANGE_PRESETS.map(p => {
-                  const selected = rangePreset === p.id;
-                  return (
-                    <button
-                      key={p.id}
-                      type="button"
-                      onClick={() => setRangePreset(p.id)}
-                      className={`px-2.5 py-1.5 rounded-lg border text-[11px] font-medium ${
-                        selected
-                          ? 'border-slate-900 bg-slate-900 text-white'
-                          : 'border-slate-200 bg-white text-slate-500'
-                      }`}
-                    >
-                      {p.labelShort}
-                    </button>
-                  );
-                })}
-              </div>
+            </button>
+
+            {/* Divider */}
+            <div className="flex items-center gap-2 my-3">
+              <div className="flex-1 h-px bg-slate-200" />
+              <span className="text-[9px] font-semibold uppercase tracking-wider text-slate-400">Or past range</span>
+              <div className="flex-1 h-px bg-slate-200" />
             </div>
-          )}
+
+            {/* Past-range chips + Custom */}
+            <div className="flex flex-wrap gap-1">
+              {PAST_RANGE_PRESETS.map(p => {
+                const selected = rangePreset === p.id;
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => setRangePreset(p.id)}
+                    className={`px-2.5 py-1.5 rounded-lg border text-[11px] font-medium ${
+                      selected
+                        ? 'border-slate-900 bg-slate-900 text-white'
+                        : 'border-slate-200 bg-white text-slate-500'
+                    }`}
+                  >
+                    {p.labelShort}
+                  </button>
+                );
+              })}
+              <button
+                type="button"
+                onClick={() => setRangePreset('custom')}
+                className={`px-2.5 py-1.5 rounded-lg border text-[11px] font-medium inline-flex items-center gap-1 ${
+                  rangePreset === 'custom'
+                    ? 'border-slate-900 bg-slate-900 text-white'
+                    : 'border-slate-200 bg-white text-slate-500'
+                }`}
+              >
+                <CalendarIcon className="w-3 h-3" />
+                Custom
+              </button>
+            </div>
+
+            {/* Custom date inputs (mobile) */}
+            {rangePreset === 'custom' && (
+              <div className="mt-2.5 p-3 rounded-lg border border-slate-200 bg-slate-50">
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="block">
+                    <span className="text-[9px] font-semibold uppercase tracking-wider text-slate-500 block mb-0.5">From</span>
+                    <input
+                      type="date"
+                      value={toISODateLocal(customStart)}
+                      max={toISODateLocal(customEnd)}
+                      onChange={e => setCustomStart(fromISODateLocal(e.target.value))}
+                      className="w-full h-9 px-2.5 bg-white border border-slate-200 rounded-md text-[11px] text-slate-700 outline-none"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-[9px] font-semibold uppercase tracking-wider text-slate-500 block mb-0.5">To</span>
+                    <input
+                      type="date"
+                      value={toISODateLocal(customEnd)}
+                      min={toISODateLocal(customStart)}
+                      max={toISODateLocal(new Date())}
+                      onChange={e => setCustomEnd(fromISODateLocal(e.target.value))}
+                      className="w-full h-9 px-2.5 bg-white border border-slate-200 rounded-md text-[11px] text-slate-700 outline-none"
+                    />
+                  </label>
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* Included Sources */}
           <div>
