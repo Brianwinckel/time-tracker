@@ -486,11 +486,32 @@ export const PrepareSummaryScreen: React.FC = () => {
     return allPanels.filter(p => panelIds.has(p.id));
   }, [reportDate, runs, allPanels]);
 
+  // For today (non-historical), derive the same way — only panels that
+  // have at least one run within the current calendar day, plus whichever
+  // panel is actively timing right now (it may have no completed run yet).
+  // This prevents zero-time panel instances from appearing in the workstream
+  // list just because they were created at some point in the past.
+  const todayPanels: Panel[] = useMemo(() => {
+    const t = new Date();
+    const dayStart = new Date(t.getFullYear(), t.getMonth(), t.getDate()).getTime();
+    const dayEnd = new Date(t.getFullYear(), t.getMonth(), t.getDate(), 23, 59, 59, 999).getTime();
+    const panelIds = new Set<string>();
+    for (const r of runs) {
+      if (r.endedAt > dayStart && r.startedAt < dayEnd) {
+        panelIds.add(r.panelId);
+      }
+    }
+    // Include the currently-active panel even if its in-flight run hasn't
+    // been banked yet (e.g. user opens Prepare Summary while a timer is live).
+    if (activeTimer) panelIds.add(activeTimer.panelId);
+    return allPanels.filter(p => panelIds.has(p.id));
+  }, [runs, allPanels, activeTimer]);
+
   // Live Panel instances from the day (both still-running and marked done
   // by "End My Day"). These drive the workstream list on this screen.
   const livePanels: Panel[] = useMemo(
-    () => isHistorical ? historicalPanels : allPanels,
-    [isHistorical, historicalPanels, allPanels],
+    () => isHistorical ? historicalPanels : todayPanels,
+    [isHistorical, historicalPanels, todayPanels],
   );
   const activePanelIds = useMemo(
     () => livePanels.map(p => p.id),
