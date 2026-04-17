@@ -100,6 +100,28 @@ interface TaskPanelsAppProps {
 // DEFAULT_BREAK_MS / DEFAULT_LUNCH_MS constants — removed in favor of
 // the persisted state below.
 
+// ---- Daily auto-reset utilities (module-level, no hooks) ----
+
+const LAST_ACTIVE_DATE_KEY = 'taskpanels.lastActiveDate';
+
+/** Today's date as "YYYY-MM-DD" in local time. */
+const todayISO = (): string => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
+/** Milliseconds until the next local midnight. */
+const msUntilMidnight = (): number => {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).getTime() - now.getTime();
+};
+
+/** Epoch ms of the most recent local midnight (i.e., start of today). */
+const startOfTodayMs = (): number => {
+  const d = new Date();
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+};
+
 const VALID_SCREENS: PreviewScreen[] = [
   'onboarding',
   'home',
@@ -619,6 +641,50 @@ export const TaskPanelsApp: React.FC<TaskPanelsAppProps> = ({ authUser }) => {
     // Land on Prepare Summary so the user can review and generate.
     navigateRef.current('prepare-summary');
   }, [appendRun, flushBreakRun]);
+
+  // Silently archive yesterday's panel instances when the calendar day rolls
+  // over. `cutoff` is the epoch ms of midnight — any running timer is ended
+  // there so the run lands on yesterday in reports, not today.
+  const performMidnightReset = useCallback((cutoff: number) => {
+    const cur = activeTimerRef.current;
+    if (cur) {
+      appendRun(cur.panelId, cur.startedAt, cutoff);
+      setActiveTimer(null);
+    }
+    flushBreakRun(activeBreakRef.current, cutoff);
+    setActiveBreak(null);
+    setPanels(prev => prev.map(p => (p.status === 'active' ? { ...p, status: 'done' } : p)));
+    try { localStorage.setItem(LAST_ACTIVE_DATE_KEY, todayISO()); } catch { /* ignore */ }
+  }, [appendRun, flushBreakRun]);
+
+  // On mount: if the stored last-active date is from a previous day, fire the
+  // reset immediately (handles overnight case and multi-day absence).
+  useEffect(() => {
+    const stored = (() => { try { return localStorage.getItem(LAST_ACTIVE_DATE_KEY); } catch { return null; } })();
+    const today = todayISO();
+    if (stored !== today) {
+      // End any in-flight run at the midnight boundary that just passed.
+      performMidnightReset(startOfTodayMs());
+    }
+    // Stamp today so tomorrow's load can detect the day change.
+    try { localStorage.setItem(LAST_ACTIVE_DATE_KEY, today); } catch { /* ignore */ }
+    // Intentional: run once on mount only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // While the app stays open, schedule a reset at the next midnight boundary
+  // and reschedule on each firing so long sessions are always covered.
+  useEffect(() => {
+    let timeoutId: number;
+    const scheduleNext = () => {
+      timeoutId = window.setTimeout(() => {
+        performMidnightReset(Date.now());
+        scheduleNext();
+      }, msUntilMidnight());
+    };
+    scheduleNext();
+    return () => window.clearTimeout(timeoutId);
+  }, [performMidnightReset]);
 
   // ---- Project actions ----
 
