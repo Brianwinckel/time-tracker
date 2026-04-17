@@ -209,6 +209,26 @@ const THEME: Record<ColorName, Theme> = {
   },
 };
 
+// Fixed SVG content for the meeting session type — matches PickPanelScreen.
+const MEETING_ICON = (
+  <>
+    <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
+    <circle cx="9" cy="7" r="4" />
+    <path d="M23 21v-2a4 4 0 00-3-3.87" />
+    <path d="M16 3.13a4 4 0 010 7.75" />
+  </>
+);
+
+// Fixed SVG content for the commute session type — matches PickPanelScreen.
+const COMMUTE_ICON = (
+  <>
+    <path d="M5 17H3a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v7a2 2 0 01-2 2h-2" />
+    <circle cx="7" cy="17" r="2" />
+    <circle cx="17" cy="17" r="2" />
+    <path d="M9 3v5h8" />
+  </>
+);
+
 // SVG icon paths for the 6 icon options
 const ICON_PATHS = [
   // monitor
@@ -483,6 +503,8 @@ export function FullscreenPanelScreen() {
 
   const theme = THEME[selectedColor];
   const currentIcon = ICON_PATHS[selectedIcon];
+  // Meetings and commutes use fixed icons; work panels use the user-chosen one.
+  const currentDisplayIcon = isMeeting ? MEETING_ICON : isCommute ? COMMUTE_ICON : currentIcon;
 
   // Inline CSS custom properties so preview.css rules (slider thumb,
   // selected work chip, etc.) can inherit the active panel color.
@@ -505,8 +527,8 @@ export function FullscreenPanelScreen() {
           </button>
           <div className="relative group shrink-0">
             <div className={`w-9 h-9 rounded-xl ${theme.iconBg} border ${theme.iconBorder} flex items-center justify-center ${theme.iconText}`}>
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                {currentIcon}
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                {currentDisplayIcon}
               </svg>
             </div>
           </div>
@@ -581,7 +603,8 @@ export function FullscreenPanelScreen() {
             </div>
           </div>
 
-          {/* Project — shared by work + meeting panels */}
+          {/* Project — work and meeting panels only (not commute) */}
+          {!isCommute && (
           <div>
             <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block mb-1.5">Project</label>
             <ProjectPicker
@@ -590,6 +613,7 @@ export function FullscreenPanelScreen() {
               size="sm"
             />
           </div>
+          )}
 
           {/* Focus Note (work) OR Topic (meeting) — same visual slot,
               different semantics. Topic asks "what is this meeting
@@ -826,16 +850,18 @@ export function FullscreenPanelScreen() {
             </button>
             <div className="flex items-center gap-3 flex-1 min-w-0">
               <div className="relative group">
-                <div className={`w-10 h-10 rounded-xl ${theme.iconBg} border ${theme.iconBorder} flex items-center justify-center ${theme.iconText} cursor-pointer ${theme.iconHoverBorder} transition-colors`}>
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    {currentIcon}
+                <div className={`w-10 h-10 rounded-xl ${theme.iconBg} border ${theme.iconBorder} flex items-center justify-center ${theme.iconText} ${isWork ? `cursor-pointer ${theme.iconHoverBorder}` : ''} transition-colors`}>
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                    {currentDisplayIcon}
                   </svg>
                 </div>
+                {isWork && (
                 <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-white border border-slate-200 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                   <svg className="w-2 h-2 text-slate-400" fill="currentColor" viewBox="0 0 16 16">
                     <path d="M12.146.146a.5.5 0 01.708 0l3 3a.5.5 0 010 .708l-10 10a.5.5 0 01-.168.11l-5 2a.5.5 0 01-.65-.65l2-5a.5.5 0 01.11-.168l10-10z" />
                   </svg>
                 </div>
+                )}
               </div>
               <div className="flex items-center gap-2.5 min-w-0">
                 <div className={`w-1 h-8 rounded-full ${theme.bar} shrink-0`}></div>
@@ -919,7 +945,8 @@ export function FullscreenPanelScreen() {
                   render project/topic/meeting-type/audience instead. Both
                   variants share the Project picker at the top. */}
               <div className="space-y-5">
-                {/* Project — shared */}
+                {/* Project — work and meeting panels only (not commute) */}
+                {!isCommute && (
                 <div>
                   <label className="text-xs font-semibold uppercase tracking-wider text-slate-400 block mb-1.5">Project</label>
                   <ProjectPicker
@@ -928,6 +955,7 @@ export function FullscreenPanelScreen() {
                     size="md"
                   />
                 </div>
+                )}
 
                 {/* Focus Note (work) OR Topic (meeting) — commute skips this */}
                 {isMeeting ? (
