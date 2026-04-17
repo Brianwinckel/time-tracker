@@ -328,6 +328,8 @@ export function FullscreenPanelScreen() {
   // component level so the branched render can reach them; work panels
   // never paint the corresponding inputs.
   const isMeeting = panel.kind === 'meeting';
+  const isCommute = panel.kind === 'commute';
+  const isWork = panel.kind === 'work';
   const [meetingType, setMeetingType] = useState<MeetingType | undefined>(panel.meetingType);
   const [meetingAudience, setMeetingAudience] = useState<MeetingAudience | undefined>(panel.audience);
   const [topic, setTopic] = useState<string>(panel.topic ?? '');
@@ -592,7 +594,8 @@ export function FullscreenPanelScreen() {
           {/* Focus Note (work) OR Topic (meeting) — same visual slot,
               different semantics. Topic asks "what is this meeting
               about?" and its value lives in a separate field on the
-              Panel so reporting can tell them apart. */}
+              Panel so reporting can tell them apart.
+              Commute panels skip this section entirely. */}
           {isMeeting ? (
             <div>
               <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block mb-1.5">What is this meeting about?</label>
@@ -604,7 +607,7 @@ export function FullscreenPanelScreen() {
                 onChange={(e) => setTopic(e.target.value)}
               />
             </div>
-          ) : (
+          ) : isWork ? (
             <div>
               <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block mb-1.5">What are you working on?</label>
               <input
@@ -615,10 +618,10 @@ export function FullscreenPanelScreen() {
                 onChange={(e) => setFocusNote(e.target.value)}
               />
             </div>
-          )}
+          ) : null}
 
           {/* Meeting-specific context. Renders only on meeting panels;
-              work panels drop straight from Focus Note → Work Type. */}
+              work and commute panels drop straight to Work Type / Notes. */}
           {isMeeting && (
             <>
               <div>
@@ -656,7 +659,7 @@ export function FullscreenPanelScreen() {
           )}
 
           {/* Work Type (work panels only) */}
-          {!isMeeting && (
+          {isWork && (
             <div>
               <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block mb-2">Work Type</label>
               <div className="flex flex-wrap gap-1.5">
@@ -674,7 +677,7 @@ export function FullscreenPanelScreen() {
           )}
 
           {/* Tags (work panels only) */}
-          {!isMeeting && (
+          {isWork && (
             <div>
               <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block mb-1.5">Tags</label>
               <div className="flex items-center gap-1.5 flex-wrap">
@@ -725,10 +728,8 @@ export function FullscreenPanelScreen() {
             </div>
           )}
 
-          {/* Session State (work panels only — meetings don't need a
-              focused/stuck/wrapping axis; they have a start and an end
-              and that's the axis that matters) */}
-          {!isMeeting && (
+          {/* Session State (work panels only) */}
+          {isWork && (
             <div>
               <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block mb-2">Session State</label>
               <div className="flex gap-1.5">
@@ -765,7 +766,8 @@ export function FullscreenPanelScreen() {
             ></textarea>
           </div>
 
-          {/* Customize Panel (collapsed) */}
+          {/* Customize Panel (collapsed) — hidden for meetings and commutes */}
+          {isWork && (
           <details className="group">
             <summary className="flex items-center gap-1.5 cursor-pointer text-[10px] font-semibold uppercase tracking-wider text-slate-300 hover:text-slate-400 list-none">
               <svg className="w-3 h-3 transition-transform group-open:rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -774,8 +776,6 @@ export function FullscreenPanelScreen() {
               Customize Panel
             </summary>
             <div className="mt-3 bg-slate-50 rounded-2xl border border-slate-100 p-4 space-y-3">
-              {/* Color picker — hidden for meetings (color is locked to slate) */}
-              {panel.kind !== 'meeting' && (
               <div>
                 <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block mb-2">Color</label>
                 <div className="flex items-center gap-2">
@@ -790,9 +790,6 @@ export function FullscreenPanelScreen() {
                   ))}
                 </div>
               </div>
-              )}
-              {/* Icon picker — hidden for meetings (icon is locked to the meeting icon) */}
-              {panel.kind !== 'meeting' && (
               <div>
                 <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block mb-2">Icon</label>
                 <div className="flex items-center gap-1.5">
@@ -810,9 +807,9 @@ export function FullscreenPanelScreen() {
                   ))}
                 </div>
               </div>
-              )}
             </div>
           </details>
+          )}
 
           <div className="h-4"></div>
         </div>
@@ -932,7 +929,7 @@ export function FullscreenPanelScreen() {
                   />
                 </div>
 
-                {/* Focus Note (work) OR Topic (meeting) */}
+                {/* Focus Note (work) OR Topic (meeting) — commute skips this */}
                 {isMeeting ? (
                   <div>
                     <label className="text-xs font-semibold uppercase tracking-wider text-slate-400 block mb-1.5">What is this meeting about?</label>
@@ -944,7 +941,7 @@ export function FullscreenPanelScreen() {
                       onChange={(e) => setTopic(e.target.value)}
                     />
                   </div>
-                ) : (
+                ) : isWork ? (
                   <div>
                     <label className="text-xs font-semibold uppercase tracking-wider text-slate-400 block mb-1.5">What are you working on?</label>
                     <input
@@ -955,7 +952,7 @@ export function FullscreenPanelScreen() {
                       onChange={(e) => setFocusNote(e.target.value)}
                     />
                   </div>
-                )}
+                ) : null}
 
                 {/* Meeting Type + Audience (meetings only) */}
                 {isMeeting && (
@@ -995,7 +992,7 @@ export function FullscreenPanelScreen() {
                 )}
 
                 {/* Work Type (work panels only) */}
-                {!isMeeting && (
+                {isWork && (
                   <div>
                     <label className="text-xs font-semibold uppercase tracking-wider text-slate-400 block mb-2">Work Type</label>
                     <div className="flex flex-wrap gap-2">
@@ -1013,7 +1010,7 @@ export function FullscreenPanelScreen() {
                 )}
 
                 {/* Tags (work panels only) */}
-                {!isMeeting && (
+                {isWork && (
                   <div>
                     <label className="text-xs font-semibold uppercase tracking-wider text-slate-400 block mb-1.5">Tags</label>
                     <div className="flex items-center gap-1.5 flex-wrap">
@@ -1066,7 +1063,7 @@ export function FullscreenPanelScreen() {
               </div>
 
               {/* Session State (work panels only) */}
-              {!isMeeting && (
+              {isWork && (
                 <div>
                   <label className="text-xs font-semibold uppercase tracking-wider text-slate-400 block mb-2">Session State</label>
                   <div className="flex gap-1.5">
@@ -1103,8 +1100,8 @@ export function FullscreenPanelScreen() {
                 ></textarea>
               </div>
 
-              {/* Customize Panel (collapsed) — hidden entirely for meetings */}
-              {panel.kind !== 'meeting' && (
+              {/* Customize Panel (collapsed) — hidden for meetings and commutes */}
+              {isWork && (
               <details className="group">
                 <summary className="flex items-center gap-1.5 cursor-pointer text-[10px] font-semibold uppercase tracking-wider text-slate-300 hover:text-slate-400 list-none">
                   <svg className="w-3 h-3 transition-transform group-open:rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

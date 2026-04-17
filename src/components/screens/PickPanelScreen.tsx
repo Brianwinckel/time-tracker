@@ -63,6 +63,17 @@ const MeetingIcon: React.FC<{ className?: string }> = ({ className }) => (
   </svg>
 );
 
+// Commute card icon — a car icon to visually distinguish commute from
+// work panels and meetings.
+const CommuteIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <path d="M5 17H3a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v7a2 2 0 01-2 2h-2" />
+    <circle cx="7" cy="17" r="2" />
+    <circle cx="17" cy="17" r="2" />
+    <path d="M9 3v5h8" />
+  </svg>
+);
+
 // ---- Inline "New Panel" form ----
 // Kept as a top-level component so it never re-mounts on every
 // keystroke in the parent — otherwise the name input would lose
@@ -153,9 +164,11 @@ export const PickPanelScreen: React.FC = () => {
     createPanelInstance,
     createPanelAndStart,
     createMeetingInstance,
+    createCommuteInstance,
     panels,
     panelAccum,
     activeTimer,
+    preferences,
   } = useNav();
 
   const [creating, setCreating] = useState(false);
@@ -223,6 +236,12 @@ export const PickPanelScreen: React.FC = () => {
   // so the user can pick Planned/Impromptu + audience + project + topic.
   const startMeeting = () => {
     const instance = createMeetingInstance();
+    navigate('panel', { panelId: instance.id });
+  };
+
+  // Start Commute: one-shot session type, like meetings but for travel.
+  const startCommute = () => {
+    const instance = createCommuteInstance();
     navigate('panel', { panelId: instance.id });
   };
 
@@ -301,6 +320,29 @@ export const PickPanelScreen: React.FC = () => {
                     <span className="px-1.5 py-0.5 rounded-md bg-slate-100 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Session type</span>
                   </div>
                   <p className="text-sm text-slate-500 mt-0.5">Planned or impromptu — tracked separately in reports</p>
+                </div>
+                <svg className="w-5 h-5 text-slate-300 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+            )}
+
+            {/* Start a Commute — shown only when enabled in preferences */}
+            {!creating && preferences.showCommute && (
+              <button
+                type="button"
+                onClick={startCommute}
+                className="w-full bg-white rounded-2xl border border-dashed border-orange-200 p-5 flex items-center gap-4 hover:border-orange-300 hover:bg-orange-50 transition-colors text-left group"
+              >
+                <div className="w-11 h-11 rounded-xl bg-orange-50 border border-orange-200 flex items-center justify-center text-orange-600 group-hover:bg-orange-100 transition-colors shrink-0">
+                  <CommuteIcon className="w-5 h-5" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base font-bold text-slate-900">Start Commute</h3>
+                    <span className="px-1.5 py-0.5 rounded-md bg-orange-50 text-[10px] font-semibold uppercase tracking-wider text-orange-500">Session type</span>
+                  </div>
+                  <p className="text-sm text-slate-500 mt-0.5">Track travel time — tracked separately in reports</p>
                 </div>
                 <svg className="w-5 h-5 text-slate-300 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path d="M9 5l7 7-7 7" />
@@ -495,6 +537,28 @@ export const PickPanelScreen: React.FC = () => {
                   <h3 className="text-sm font-bold text-slate-900">Start a Meeting</h3>
                 </div>
                 <p className="text-[11px] text-slate-500 mt-0.5 truncate">Planned or impromptu — tracked separately</p>
+              </div>
+              <svg className="w-4 h-4 text-slate-300 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+          )}
+
+          {/* Start a Commute — mobile variant, shown only when enabled */}
+          {!creating && preferences.showCommute && (
+            <button
+              type="button"
+              onClick={startCommute}
+              className="w-full bg-white rounded-2xl border border-dashed border-orange-200 p-4 flex items-center gap-3 text-left"
+            >
+              <div className="w-10 h-10 rounded-xl bg-orange-50 border border-orange-200 flex items-center justify-center text-orange-600 shrink-0">
+                <CommuteIcon className="w-4 h-4" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <h3 className="text-sm font-bold text-slate-900">Start Commute</h3>
+                </div>
+                <p className="text-[11px] text-slate-500 mt-0.5 truncate">Track travel time — tracked separately</p>
               </div>
               <svg className="w-4 h-4 text-slate-300 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path d="M9 5l7 7-7 7" />

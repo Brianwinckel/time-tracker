@@ -44,6 +44,7 @@ import {
   makePanelFromType,
   colorOptionFor,
   makeMeetingPanel,
+  makeCommutePanel,
   makeRun,
   BREAK_PANEL_ID,
   LUNCH_PANEL_ID,
@@ -567,6 +568,23 @@ export const TaskPanelsApp: React.FC<TaskPanelsAppProps> = ({ authUser }) => {
     [appendRun, flushBreakRun],
   );
 
+  const createCommuteInstance = useCallback(
+    (input: { name?: string; colorId?: string } = {}): Panel => {
+      const instance = makeCommutePanel(input);
+      setPanels(prev => [...prev, instance]);
+      const now = Date.now();
+      const prev = activeTimerRef.current;
+      flushBreakRun(activeBreakRef.current, now);
+      setActiveBreak(null);
+      if (prev) {
+        appendRun(prev.panelId, prev.startedAt, now);
+      }
+      setActiveTimer({ panelId: instance.id, startedAt: now });
+      return instance;
+    },
+    [appendRun, flushBreakRun],
+  );
+
   const updatePanel = useCallback((id: string, patch: Partial<Panel>) => {
     setPanels(prev => prev.map(p => (p.id === id ? { ...p, ...patch } : p)));
   }, []);
@@ -715,6 +733,7 @@ export const TaskPanelsApp: React.FC<TaskPanelsAppProps> = ({ authUser }) => {
     createPanelInstance,
     createPanelAndStart,
     createMeetingInstance,
+    createCommuteInstance,
     updatePanel,
     deletePanelInstance,
     endMyDay,

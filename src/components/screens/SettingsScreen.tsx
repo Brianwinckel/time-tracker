@@ -1775,7 +1775,7 @@ const BreakRow: React.FC<BreakRowProps> = ({
 };
 
 const SettingsBreakDefaults: React.FC = () => {
-  const { breakDurationsMs, setBreakDurationMs } = useNav();
+  const { breakDurationsMs, setBreakDurationMs, preferences, setPreference } = useNav();
   const breakMin = Math.round(breakDurationsMs.break / 60000);
   const lunchMin = Math.round(breakDurationsMs.lunch / 60000);
 
@@ -1805,6 +1805,75 @@ const SettingsBreakDefaults: React.FC = () => {
       <p className="mt-4 text-[11px] text-slate-400">
         Range: {BREAK_MIN_MINUTES}–{BREAK_MAX_MINUTES} minutes. Values outside this range are clamped.
       </p>
+
+      <h2 className="text-sm font-bold text-slate-900 mt-8 mb-2">Non-Work Tracking</h2>
+      <p className="text-sm text-slate-500 mb-4">
+        Choose which non-work session types appear on Home and in Pick Panel.
+      </p>
+      <section className="bg-white rounded-2xl border border-slate-200 divide-y divide-slate-100">
+        {/* Break toggle */}
+        <div className="flex items-center gap-4 px-5 py-4">
+          <div className="w-9 h-9 rounded-xl bg-amber-100 flex items-center justify-center shrink-0">
+            <svg className="w-4 h-4 text-amber-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-slate-800">Break</p>
+            <p className="text-xs text-slate-500">Show the Break countdown button on Home</p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={preferences.showBreak}
+            onClick={() => setPreference('showBreak', !preferences.showBreak)}
+            className={`relative inline-flex w-11 h-6 rounded-full transition-colors shrink-0 ${preferences.showBreak ? 'bg-slate-800' : 'bg-slate-200'}`}
+          >
+            <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${preferences.showBreak ? 'translate-x-5' : 'translate-x-0'}`} />
+          </button>
+        </div>
+        {/* Lunch toggle */}
+        <div className="flex items-center gap-4 px-5 py-4">
+          <div className="w-9 h-9 rounded-xl bg-rose-100 flex items-center justify-center shrink-0">
+            <svg className="w-4 h-4 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M3 3h18M3 7h18M9 11l3 10 3-10" /></svg>
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-slate-800">Lunch</p>
+            <p className="text-xs text-slate-500">Show the Lunch countdown button on Home</p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={preferences.showLunch}
+            onClick={() => setPreference('showLunch', !preferences.showLunch)}
+            className={`relative inline-flex w-11 h-6 rounded-full transition-colors shrink-0 ${preferences.showLunch ? 'bg-slate-800' : 'bg-slate-200'}`}
+          >
+            <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${preferences.showLunch ? 'translate-x-5' : 'translate-x-0'}`} />
+          </button>
+        </div>
+        {/* Commute toggle */}
+        <div className="flex items-center gap-4 px-5 py-4">
+          <div className="w-9 h-9 rounded-xl bg-orange-100 flex items-center justify-center shrink-0">
+            <svg className="w-4 h-4 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+              <path d="M5 17H3a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v7a2 2 0 01-2 2h-2" />
+              <circle cx="7" cy="17" r="2" />
+              <circle cx="17" cy="17" r="2" />
+              <path d="M9 3v5h8" />
+            </svg>
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-slate-800">Commute</p>
+            <p className="text-xs text-slate-500">Show "Start Commute" in Pick Panel — tracked separately in reports</p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={preferences.showCommute}
+            onClick={() => setPreference('showCommute', !preferences.showCommute)}
+            className={`relative inline-flex w-11 h-6 rounded-full transition-colors shrink-0 ${preferences.showCommute ? 'bg-slate-800' : 'bg-slate-200'}`}
+          >
+            <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${preferences.showCommute ? 'translate-x-5' : 'translate-x-0'}`} />
+          </button>
+        </div>
+      </section>
     </SettingsShell>
   );
 };

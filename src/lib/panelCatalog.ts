@@ -187,7 +187,7 @@ export type PanelStatus = 'active' | 'done';
  *  labels with project + topic. Keeping them separate preserves the
  *  existing timer/countdown flow and the sentinel-based timeline
  *  rendering. */
-export type PanelKind = 'work' | 'meeting';
+export type PanelKind = 'work' | 'meeting' | 'commute';
 
 /** Meeting-specific enums. All optional on Panel — work instances
  *  ignore them, meeting instances populate them during the session. */
@@ -272,6 +272,10 @@ export interface Panel {
  *  the template list. */
 export const MEETING_TYPE_ID = '__meeting__';
 
+/** Sentinel typeId for commute instances. Like meetings, commutes are
+ *  one-shot sessions with no catalog template. */
+export const COMMUTE_TYPE_ID = '__commute__';
+
 /** Build a fresh Panel instance from a catalog entry. */
 export function makePanelFromType(type: MockPanel): Panel {
   const id =
@@ -327,6 +331,35 @@ export function makeMeetingPanel(input: {
   };
 }
 
+/** Build a fresh commute Panel instance. Like meetings, commutes have no
+ *  catalog template — one-shot session started directly from Pick Panel.
+ *  Defaults to orange so commute cards are visually distinct from work
+ *  (blue/etc.) and meetings (slate). */
+export function makeCommutePanel(input: {
+  name?: string;
+  colorId?: string;
+} = {}): Panel {
+  const opt = colorOptionFor(input.colorId ?? 'orange');
+  const id =
+    typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? crypto.randomUUID()
+      : `panel_commute_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  return {
+    id,
+    typeId: COMMUTE_TYPE_ID,
+    createdAt: Date.now(),
+    status: 'active',
+    kind: 'commute',
+    name: input.name?.trim() || 'Commute',
+    color: opt.id,
+    bgClass: opt.bgClass,
+    borderClass: opt.borderClass,
+    barClass: opt.barClass,
+    timerColorClass: opt.timerColorClass,
+    activeColorClass: opt.activeColorClass,
+  };
+}
+
 const PANELS_STORAGE_KEY = 'taskpanels.panels.v1';
 
 export function loadPanels(): Panel[] {
@@ -343,16 +376,14 @@ export function loadPanels(): Panel[] {
     // rendering path.
     return parsed.map(p => {
       const opt = colorOptionFor(p.color ?? 'blue');
-      const kind: PanelKind = p.kind ?? 'work';
-      // Scrub stale work-panel fields off meeting instances. An earlier
-      // version of FullscreenPanelScreen unconditionally wrote the
-      // `selectedWorkType` useState default ('Coding') back onto every
-      // panel on mount, which corrupted meeting instances with a
-      // misleading subtitle ("Show n Tell → Coding"). The write path is
-      // now gated, but existing saved data still needs to be cleaned —
-      // this migration runs once on next load and is otherwise a no-op.
-      const workType = kind === 'meeting' ? undefined : p.workType;
-      const focusNote = kind === 'meeting' ? undefined : p.focusNote;
+      const kind: PanelKind =
+        p.kind === 'meeting' || p.kind === 'commute' ? p.kind : 'work';
+      // Scrub stale work-panel fields off meeting/commute instances. An
+      // earlier version of FullscreenPanelScreen unconditionally wrote
+      // the `selectedWorkType` useState default ('Coding') back onto
+      // every panel on mount, which corrupted non-work instances.
+      const workType = kind === 'work' ? p.workType : undefined;
+      const focusNote = kind === 'work' ? p.focusNote : undefined;
       return {
         ...p,
         status: p.status ?? 'active',

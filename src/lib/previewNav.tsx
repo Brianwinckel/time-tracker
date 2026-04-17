@@ -91,6 +91,10 @@ type NavContextValue = {
    *  are one-shot) and immediately start its timer. Returns the new
    *  instance so the caller can navigate into it. */
   createMeetingInstance: (input?: { name?: string; colorId?: string }) => Panel;
+  /** Create a live commute Panel instance (template-free — commutes
+   *  are one-shot) and immediately start its timer. Returns the new
+   *  instance so the caller can navigate into it. */
+  createCommuteInstance: (input?: { name?: string; colorId?: string }) => Panel;
   /** Patch an instance's editable fields (project, workType, focusNote, etc.). */
   updatePanel: (id: string, patch: Partial<Panel>) => void;
   /** Delete a live instance. Stops the timer if it was running. */
@@ -213,6 +217,20 @@ export const useNav = (): NavContextValue => {
         barClass: 'bg-slate-500',
         timerColorClass: 'text-slate-600',
         activeColorClass: 'text-slate-500',
+      }),
+      createCommuteInstance: () => ({
+        id: 'panel_noop_commute',
+        typeId: '__commute__',
+        createdAt: Date.now(),
+        status: 'active',
+        kind: 'commute',
+        name: 'Commute',
+        color: 'orange',
+        bgClass: 'bg-orange-50',
+        borderClass: 'border-orange-200',
+        barClass: 'bg-orange-400',
+        timerColorClass: 'text-orange-600',
+        activeColorClass: 'text-orange-500',
       }),
       updatePanel: noop,
       deletePanelInstance: noop,

@@ -47,6 +47,7 @@ export const HomeScreen: React.FC = () => {
     breakAccum,
     endMyDay,
     userProfile,
+    preferences,
   } = useNav();
   const [activeTab, setActiveTab] = useState<'today' | 'archive'>('today');
 
@@ -313,9 +314,10 @@ export const HomeScreen: React.FC = () => {
                 </button>
               ))}
 
-              {/* Break / Lunch — hidden while empty */}
-              {!isEmpty && (
+              {/* Break / Lunch — hidden while empty or toggled off in preferences */}
+              {!isEmpty && (preferences.showBreak || preferences.showLunch) && (
               <div className="flex gap-3">
+                {preferences.showBreak && (
                 <button
                   type="button"
                   onClick={() => startBreak('break')}
@@ -335,6 +337,8 @@ export const HomeScreen: React.FC = () => {
                     </p>
                   </div>
                 </button>
+                )}
+                {preferences.showLunch && (
                 <button
                   type="button"
                   onClick={() => startBreak('lunch')}
@@ -354,6 +358,7 @@ export const HomeScreen: React.FC = () => {
                     </p>
                   </div>
                 </button>
+                )}
               </div>
               )}
 
@@ -505,9 +510,10 @@ export const HomeScreen: React.FC = () => {
             </button>
           ))}
 
-          {/* Break / Lunch — hidden while empty */}
-          {!isEmpty && (
+          {/* Break / Lunch — hidden while empty or toggled off in preferences */}
+          {!isEmpty && (preferences.showBreak || preferences.showLunch) && (
           <div className="flex gap-2.5">
+            {preferences.showBreak && (
             <button
               type="button"
               onClick={() => startBreak('break')}
@@ -527,6 +533,8 @@ export const HomeScreen: React.FC = () => {
                 </p>
               </div>
             </button>
+            )}
+            {preferences.showLunch && (
             <button
               type="button"
               onClick={() => startBreak('lunch')}
@@ -546,6 +554,7 @@ export const HomeScreen: React.FC = () => {
                 </p>
               </div>
             </button>
+            )}
           </div>
           )}
 

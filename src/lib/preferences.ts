@@ -78,6 +78,14 @@ export interface AppPreferences {
   autoDailyEmailTime: string;
   /** Recipient address for the auto email. */
   autoDailyEmailRecipient: string;
+
+  // ---- Non-Work Tracking ----
+  /** Show the Break countdown button on Home. */
+  showBreak: boolean;
+  /** Show the Lunch countdown button on Home. */
+  showLunch: boolean;
+  /** Show the Commute session type in Pick Panel. */
+  showCommute: boolean;
 }
 
 const STORAGE_KEY = 'taskpanels.preferences.v1';
@@ -113,6 +121,10 @@ export const DEFAULT_PREFERENCES: AppPreferences = {
   autoDailyEmailEnabled: false,
   autoDailyEmailTime: '17:30',
   autoDailyEmailRecipient: '',
+  // Non-Work Tracking
+  showBreak: true,
+  showLunch: true,
+  showCommute: false,
 };
 
 const VALID_TIME_FORMATS: TimeFormat[] = ['12h', '24h'];
@@ -240,6 +252,18 @@ export function loadPreferences(): AppPreferences {
         typeof parsed.autoDailyEmailRecipient === 'string'
           ? parsed.autoDailyEmailRecipient.trim()
           : DEFAULT_PREFERENCES.autoDailyEmailRecipient,
+      showBreak:
+        typeof parsed.showBreak === 'boolean'
+          ? parsed.showBreak
+          : DEFAULT_PREFERENCES.showBreak,
+      showLunch:
+        typeof parsed.showLunch === 'boolean'
+          ? parsed.showLunch
+          : DEFAULT_PREFERENCES.showLunch,
+      showCommute:
+        typeof parsed.showCommute === 'boolean'
+          ? parsed.showCommute
+          : DEFAULT_PREFERENCES.showCommute,
     };
   } catch {
     return { ...DEFAULT_PREFERENCES };
