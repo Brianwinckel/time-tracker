@@ -283,8 +283,10 @@ export const TaskPanelsApp: React.FC<TaskPanelsAppProps> = ({ authUser }) => {
   // Break time is stored in `runs` too, keyed by BREAK/LUNCH_PANEL_ID,
   // but HomeScreen still wants a fast "total break accumulated" rollup.
   const breakAccum = useMemo<Record<BreakKind, number>>(() => {
+    const dayStart = startOfTodayMs();
     const acc: Record<BreakKind, number> = { break: 0, lunch: 0 };
     for (const r of runs) {
+      if (r.endedAt <= dayStart) continue;
       if (r.panelId === BREAK_PANEL_ID) acc.break += r.endedAt - r.startedAt;
       else if (r.panelId === LUNCH_PANEL_ID) acc.lunch += r.endedAt - r.startedAt;
     }
