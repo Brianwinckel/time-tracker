@@ -76,26 +76,55 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await refreshProfile();
   }, [user, refreshProfile]);
 
-  // Initialize: check existing session
+  // Initialize: check existing session.
+  //
+  // Two defensive choices that matter in production:
+  //
+  //  1. We don't block `loading` on the profile fetch. The app only
+  //     needs to know "is there a user?" to decide between auth-screen
+  //     and app-shell. The profile is supplementary; hydrate it in the
+  //     background. Without this, a flaky Supabase query to `profiles`
+  //     pins the breathing-logo loader forever.
+  //
+  //  2. A 5-second safety ceiling force-flips `loading` to false even
+  //     if `getSession()` itself hangs. Better to show the auth screen
+  //     (and let the user retry) than to spin indefinitely.
   useEffect(() => {
+    let cancelled = false;
+
+    const safetyTimer = window.setTimeout(() => {
+      if (!cancelled) setLoading(false);
+    }, 5000);
+
+    const hydrateProfile = (userId: string) => {
+      fetchProfile(userId).then(p => {
+        if (!cancelled) setProfile(p);
+      });
+    };
+
     const init = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        setUser(session.user);
-        const p = await fetchProfile(session.user.id);
-        setProfile(p);
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (cancelled) return;
+        if (session?.user) {
+          setUser(session.user);
+          hydrateProfile(session.user.id);
+        }
+      } catch (err) {
+        console.error('Failed to get session:', err);
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-      setLoading(false);
     };
     init();
 
     // Listen for auth changes (magic link callback, sign out, etc.)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event: string, session: Session | null) => {
+      (_event: string, session: Session | null) => {
+        if (cancelled) return;
         if (session?.user) {
           setUser(session.user);
-          const p = await fetchProfile(session.user.id);
-          setProfile(p);
+          hydrateProfile(session.user.id);
         } else {
           setUser(null);
           setProfile(null);
@@ -104,7 +133,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     );
 
-    return () => subscription.unsubscribe();
+    return () => {
+      cancelled = true;
+      window.clearTimeout(safetyTimer);
+      subscription.unsubscribe();
+    };
   }, [fetchProfile]);
 
   // Sign in with magic link
