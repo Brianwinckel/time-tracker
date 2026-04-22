@@ -4,7 +4,6 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
-import { flushPendingWrites } from '../storage';
 import type { User, Session } from '@supabase/supabase-js';
 
 export interface Profile {
@@ -204,9 +203,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { error: error?.message ?? null };
   }, []);
 
-  // Sign out — flush pending data first
+  // Sign out
   const signOut = useCallback(async () => {
-    await flushPendingWrites();
     await supabase.auth.signOut();
     setUser(null);
     setProfile(null);
