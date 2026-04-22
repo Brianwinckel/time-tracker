@@ -474,31 +474,31 @@ export const ProfileScreen: React.FC = () => {
                 </p>
               )}
             </header>
+            {/* Single row — Stripe's Customer Portal handles
+                subscription, payment method, and invoice history
+                on one hosted page, so splitting these out would
+                just open the same URL three ways. */}
             <ul>
-              {[
-                { label: 'Manage Subscription', hint: 'Upgrade, downgrade, or cancel your plan' },
-                { label: 'Payment Method',      hint: 'Update the card on file' },
-                { label: 'Invoices',            hint: 'Download past receipts' },
-              ].map((item, i, arr) => (
-                <li key={item.label} className={i < arr.length - 1 ? 'border-b border-slate-100' : ''}>
-                  <button
-                    type="button"
-                    onClick={openPortal}
-                    disabled={portalLoading}
-                    className="w-full px-5 py-3 flex items-center justify-between hover:bg-slate-50 transition-colors text-left disabled:cursor-wait disabled:opacity-60"
-                  >
-                    <div className="min-w-0">
-                      <p className="text-sm text-slate-700 truncate">{item.label}</p>
-                      {item.hint && (
-                        <p className="text-[11px] text-slate-400 truncate mt-0.5">{item.hint}</p>
-                      )}
-                    </div>
-                    <svg className="w-4 h-4 text-slate-400 shrink-0 ml-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path d="M9 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                  </button>
-                </li>
-              ))}
+              <li>
+                <button
+                  type="button"
+                  onClick={openPortal}
+                  disabled={portalLoading}
+                  className="w-full px-5 py-3 flex items-center justify-between hover:bg-slate-50 transition-colors text-left disabled:cursor-wait disabled:opacity-60"
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm text-slate-700 truncate">
+                      {portalLoading ? 'Opening…' : 'Manage Subscription'}
+                    </p>
+                    <p className="text-[11px] text-slate-400 truncate mt-0.5">
+                      Update your plan, payment method, or download invoices
+                    </p>
+                  </div>
+                  <svg className="w-4 h-4 text-slate-400 shrink-0 ml-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path d="M9 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </button>
+              </li>
             </ul>
             {portalError && (
               <p className="px-5 py-3 text-xs text-rose-600 border-t border-rose-100 bg-rose-50">
