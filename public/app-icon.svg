@@ -3,9 +3,10 @@
        iOS will mask the corners; the rx is for non-iOS PWA installs. -->
   <rect width="512" height="512" rx="96" fill="#ffffff"/>
   <!-- Four-circle TaskPanels brand mark, scaled from the 32x32 favicon (16x).
-       Centers: (160,160) (352,160) (160,352) (352,352); radius 80. -->
+       Arrangement matches TaskPanelsLogo.tsx: blue/green on top,
+       orange/purple on bottom. -->
   <circle cx="160" cy="160" r="80" fill="#3b82f6"/>
-  <circle cx="352" cy="160" r="80" fill="#f97316"/>
-  <circle cx="160" cy="352" r="80" fill="#8b5cf6"/>
-  <circle cx="352" cy="352" r="80" fill="#10b981"/>
+  <circle cx="352" cy="160" r="80" fill="#10b981"/>
+  <circle cx="160" cy="352" r="80" fill="#f97316"/>
+  <circle cx="352" cy="352" r="80" fill="#8b5cf6"/>
 </svg>

@@ -1,9 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
   <!-- Rounded white tile so the mark stays legible on any tab background -->
   <rect width="32" height="32" rx="6" fill="#ffffff"/>
-  <!-- Four-circle TaskPanels brand mark, matches the in-app logo -->
+  <!-- Four-circle TaskPanels brand mark, matches the in-app logo:
+       blue/green on top, orange/purple on bottom. -->
   <circle cx="10" cy="10" r="5" fill="#3b82f6"/>
-  <circle cx="22" cy="10" r="5" fill="#f97316"/>
-  <circle cx="10" cy="22" r="5" fill="#8b5cf6"/>
-  <circle cx="22" cy="22" r="5" fill="#10b981"/>
+  <circle cx="22" cy="10" r="5" fill="#10b981"/>
+  <circle cx="10" cy="22" r="5" fill="#f97316"/>
+  <circle cx="22" cy="22" r="5" fill="#8b5cf6"/>
 </svg>
