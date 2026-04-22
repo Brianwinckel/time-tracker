@@ -6,19 +6,34 @@
 // summary) via NavProvider. Persistence is localStorage.
 // ============================================================
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { HomeScreen } from './screens/HomeScreen';
 import { FullscreenPanelScreen } from './screens/FullscreenPanelScreen';
-import { PrepareSummaryScreen } from './screens/PrepareSummaryScreen';
-import { DailyWorkSummaryScreen } from './screens/DailyWorkSummaryScreen';
-import { PerformanceReviewScreen } from './screens/PerformanceReviewScreen';
-import { SummaryArchiveScreen } from './screens/SummaryArchiveScreen';
-import { TeamGateScreen } from './screens/TeamGateScreen';
 import { PickPanelScreen } from './screens/PickPanelScreen';
-import { OnboardingScreen } from './screens/OnboardingScreen';
-import { SettingsScreen } from './screens/SettingsScreen';
-import { ProfileScreen } from './screens/ProfileScreen';
 import { AvatarBadge } from './AvatarBadge';
+import { TaskPanelsLogo } from './TaskPanelsLogo';
+
+// Lazy-loaded screens — each becomes its own code-split chunk so
+// users don't pay the download cost unless they navigate there. Home,
+// PickPanel, and FullscreenPanel stay eager because they're on the
+// critical home flow and transitions between them should feel instant.
+const PrepareSummaryScreen    = lazy(() => import('./screens/PrepareSummaryScreen').then(m => ({ default: m.PrepareSummaryScreen })));
+const DailyWorkSummaryScreen  = lazy(() => import('./screens/DailyWorkSummaryScreen').then(m => ({ default: m.DailyWorkSummaryScreen })));
+const PerformanceReviewScreen = lazy(() => import('./screens/PerformanceReviewScreen').then(m => ({ default: m.PerformanceReviewScreen })));
+const SummaryArchiveScreen    = lazy(() => import('./screens/SummaryArchiveScreen').then(m => ({ default: m.SummaryArchiveScreen })));
+const TeamGateScreen          = lazy(() => import('./screens/TeamGateScreen').then(m => ({ default: m.TeamGateScreen })));
+const OnboardingScreen        = lazy(() => import('./screens/OnboardingScreen').then(m => ({ default: m.OnboardingScreen })));
+const SettingsScreen          = lazy(() => import('./screens/SettingsScreen').then(m => ({ default: m.SettingsScreen })));
+const ProfileScreen           = lazy(() => import('./screens/ProfileScreen').then(m => ({ default: m.ProfileScreen })));
+
+// Lightweight placeholder shown while a lazy screen chunk downloads.
+// Matches the AuthGate loader visually so the brief flash feels
+// intentional instead of broken.
+const ScreenFallback: React.FC = () => (
+  <div className="flex flex-col items-center justify-center h-full w-full bg-white gap-3">
+    <TaskPanelsLogo size={48} animated />
+  </div>
+);
 import {
   NavProvider,
   type PreviewScreen,
@@ -857,30 +872,32 @@ export const TaskPanelsApp: React.FC<TaskPanelsAppProps> = ({ authUser }) => {
   // Onboarding — fullscreen, no sidebar/nav, no NavProvider needed
   if (screen === 'onboarding') {
     return (
-      <OnboardingScreen
-        onComplete={({ roleLabel, audience }) => {
-          // Reload the catalog from localStorage (OnboardingScreen persisted it).
-          setPanelCatalog(loadCatalog());
-          // Seed the user's profile with the role they picked during
-          // onboarding so ProfileScreen isn't mysteriously empty. Only
-          // write if the user hasn't already filled it (re-onboarding
-          // later shouldn't clobber a manually-tuned role).
-          updateProfile({
-            role: userProfile.role.trim() || roleLabel,
-          });
-          // Map the onboarding audience pick to the preferences enum.
-          // Onboarding uses 'internal' while preferences uses 'team'.
-          const AUDIENCE_MAP: Record<string, AppPreferences['defaultAudience']> = {
-            manager: 'manager',
-            internal: 'team',
-            client: 'client',
-            personal: 'personal',
-          };
-          const mapped = AUDIENCE_MAP[audience] ?? 'manager';
-          setPreference('defaultAudience', mapped);
-          navigate('home');
-        }}
-      />
+      <Suspense fallback={<ScreenFallback />}>
+        <OnboardingScreen
+          onComplete={({ roleLabel, audience }) => {
+            // Reload the catalog from localStorage (OnboardingScreen persisted it).
+            setPanelCatalog(loadCatalog());
+            // Seed the user's profile with the role they picked during
+            // onboarding so ProfileScreen isn't mysteriously empty. Only
+            // write if the user hasn't already filled it (re-onboarding
+            // later shouldn't clobber a manually-tuned role).
+            updateProfile({
+              role: userProfile.role.trim() || roleLabel,
+            });
+            // Map the onboarding audience pick to the preferences enum.
+            // Onboarding uses 'internal' while preferences uses 'team'.
+            const AUDIENCE_MAP: Record<string, AppPreferences['defaultAudience']> = {
+              manager: 'manager',
+              internal: 'team',
+              client: 'client',
+              personal: 'personal',
+            };
+            const mapped = AUDIENCE_MAP[audience] ?? 'manager';
+            setPreference('defaultAudience', mapped);
+            navigate('home');
+          }}
+        />
+      </Suspense>
     );
   }
 
@@ -979,21 +996,22 @@ export const TaskPanelsApp: React.FC<TaskPanelsAppProps> = ({ authUser }) => {
             <main className="flex-1 overflow-auto">
               <HomeScreen />
             </main>
-          ) : screen === 'prepare-summary' ? (
-            <PrepareSummaryScreen />
-          ) : screen === 'daily-summary' ? (
-            <DailyWorkSummaryScreen />
-          ) : screen === 'performance-review' ? (
-            <PerformanceReviewScreen />
-          ) : screen === 'summary-archive' ? (
-            <SummaryArchiveScreen />
-          ) : isTeam ? (
-            <TeamGateScreen />
-          ) : isSettings ? (
-            <SettingsScreen />
-          ) : isProfile ? (
-            <ProfileScreen />
-          ) : null}
+          ) : (
+            // Suspense fallback covers the brief chunk download for
+            // any lazy-loaded screen. Home and the fullscreen flows
+            // (panel, pick-panel) handle their own rendering above
+            // and never fall into this branch.
+            <Suspense fallback={<ScreenFallback />}>
+              {screen === 'prepare-summary'    ? <PrepareSummaryScreen />    :
+               screen === 'daily-summary'      ? <DailyWorkSummaryScreen />  :
+               screen === 'performance-review' ? <PerformanceReviewScreen /> :
+               screen === 'summary-archive'    ? <SummaryArchiveScreen />    :
+               isTeam                           ? <TeamGateScreen />          :
+               isSettings                       ? <SettingsScreen />          :
+               isProfile                        ? <ProfileScreen />           :
+               null}
+            </Suspense>
+          )}
 
           {/* ===== Mobile Bottom Tab Bar — Tracker / Summary / Team / Settings =====
               Profile lives in the home header avatar on mobile so we don't
