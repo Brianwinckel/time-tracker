@@ -20,11 +20,13 @@ import { useNav } from '../../lib/previewNav';
 import { AvatarBadge } from '../AvatarBadge';
 import type { AppPreferences } from '../../lib/preferences';
 import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../context/AuthContext';
 import { useEntitlements } from '../../context/EntitlementsContext';
 import { PLANS } from '../../lib/billing';
 
 export const ProfileScreen: React.FC = () => {
   const { navigate, userProfile, updateProfile, preferences, setPreference } = useNav();
+  const { signOut } = useAuth();
   const { entitlements } = useEntitlements();
   const fileRef = useRef<HTMLInputElement | null>(null);
 
@@ -97,8 +99,21 @@ export const ProfileScreen: React.FC = () => {
     updateProfile({ avatarDataUrl: null });
   };
 
-  const handleSignOut = () => {
-    window.alert('Sign out is wired up in the production build.');
+  const [signingOut, setSigningOut] = useState(false);
+
+  const handleSignOut = async () => {
+    if (signingOut) return;
+    if (!window.confirm('Sign out of TaskPanels on this device?')) return;
+    setSigningOut(true);
+    try {
+      await signOut();
+      // AuthContext clears user/profile; AuthGate will render the
+      // AuthScreen on the next render. No manual redirect needed.
+    } catch (err) {
+      console.error('Sign out failed:', err);
+      setSigningOut(false);
+      window.alert('Sign out failed. Please try again.');
+    }
   };
 
   // Walk the user back through the welcome → role → panels → audience
@@ -565,10 +580,13 @@ export const ProfileScreen: React.FC = () => {
           <button
             type="button"
             onClick={handleSignOut}
-            className="w-full px-5 py-4 flex items-center justify-between text-left hover:bg-slate-50"
+            disabled={signingOut}
+            className="w-full px-5 py-4 flex items-center justify-between text-left hover:bg-slate-50 disabled:cursor-wait disabled:opacity-60"
           >
             <div>
-              <p className="text-sm font-semibold text-rose-600">Sign Out</p>
+              <p className="text-sm font-semibold text-rose-600">
+                {signingOut ? 'Signing out…' : 'Sign Out'}
+              </p>
               <p className="text-xs text-slate-500 mt-0.5">End the current session on this device.</p>
             </div>
             <svg className="w-4 h-4 text-rose-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
