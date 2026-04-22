@@ -16,7 +16,7 @@
 
 import { supabase } from './supabase';
 
-export type StateKey = 'profile' | 'preferences' | 'onboarding' | 'break_defaults';
+export type StateKey = 'profile' | 'preferences' | 'onboarding' | 'break_defaults' | 'catalog';
 
 interface UserStateRow {
   user_id: string;
@@ -24,6 +24,7 @@ interface UserStateRow {
   preferences: unknown | null;
   onboarding: unknown | null;
   break_defaults: unknown | null;
+  catalog: unknown | null;
   created_at?: string;
   updated_at?: string;
 }

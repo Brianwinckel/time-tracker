@@ -29,6 +29,7 @@ import { loadProfile } from './lib/profile';
 import { loadPreferences } from './lib/preferences';
 import { loadOnboarding } from './lib/onboarding';
 import { loadBreakDurations } from './lib/breakDefaults';
+import { loadCatalog } from './lib/panelCatalog';
 
 // Modules we sync through the user_state JSON-blob table. Normalizers
 // just round-trip through the module's own loader to get default-filled,
@@ -71,6 +72,16 @@ const CLOUD_MODULES: StorageModule<unknown>[] = [
       try {
         localStorage.setItem('taskpanels.breakDefaults.v1', JSON.stringify(raw));
         return loadBreakDurations();
+      } catch { return null; }
+    },
+  },
+  {
+    storageKey: 'taskpanels.catalog.v1',
+    stateKey: 'catalog',
+    normalize: (raw) => {
+      try {
+        localStorage.setItem('taskpanels.catalog.v1', JSON.stringify(raw));
+        return loadCatalog();
       } catch { return null; }
     },
   },

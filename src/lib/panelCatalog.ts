@@ -16,6 +16,8 @@
 // with a curated catalog instead of the generic four-panel default.
 // ============================================================
 
+import { pushUserState } from './cloudState';
+
 export interface MockPanel {
   id: string;
   name: string;
@@ -165,6 +167,7 @@ export function saveCatalog(panels: MockPanel[]): void {
   } catch {
     /* quota or privacy mode — ignore */
   }
+  pushUserState('catalog', panels);
 }
 
 // ============================================================
