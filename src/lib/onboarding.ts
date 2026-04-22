@@ -7,6 +7,7 @@
 // ============================================================
 
 import { makePanel, type MockPanel } from './panelCatalog';
+import { pushUserState } from './cloudState';
 
 // ---- Work Roles ----
 
@@ -200,6 +201,7 @@ export function saveOnboarding(result: OnboardingResult): void {
   } catch {
     /* quota or privacy mode — ignore */
   }
+  pushUserState('onboarding', result);
 }
 
 export function clearOnboarding(): void {

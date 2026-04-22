@@ -10,6 +10,7 @@
 // ============================================================
 
 import type { BreakKind } from './previewNav';
+import { pushUserState } from './cloudState';
 
 export type BreakDurationsMs = Record<BreakKind, number>;
 
@@ -57,15 +58,14 @@ export function loadBreakDurations(): BreakDurationsMs {
 
 export function saveBreakDurations(durations: BreakDurationsMs): void {
   if (typeof window === 'undefined' || !window.localStorage) return;
+  const clamped: BreakDurationsMs = {
+    break: clampBreakMs(durations.break),
+    lunch: clampBreakMs(durations.lunch),
+  };
   try {
-    window.localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify({
-        break: clampBreakMs(durations.break),
-        lunch: clampBreakMs(durations.lunch),
-      }),
-    );
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(clamped));
   } catch {
     /* quota or privacy mode — ignore */
   }
+  pushUserState('break_defaults', clamped);
 }

@@ -10,6 +10,8 @@
 // "how the app works"). Profile owns "who I am".
 // ============================================================
 
+import { pushUserState } from './cloudState';
+
 /** How the user is currently authenticated. Drives which avatar source
  *  the app prefers when rendering — uploaded photos always win, but a
  *  Google sign-in supplies a remote URL as the next-best fallback. */
@@ -70,6 +72,7 @@ export function saveProfile(profile: UserProfile): void {
   } catch {
     /* quota or privacy mode — ignore */
   }
+  pushUserState('profile', profile);
 }
 
 /** Two-letter initials from a name. Returns empty string if no name. */

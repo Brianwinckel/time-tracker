@@ -4,6 +4,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
+import { setCloudStateUser } from '../lib/cloudState';
 import type { User, Session } from '@supabase/supabase-js';
 
 export interface Profile {
@@ -107,6 +108,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (cancelled) return;
         if (session?.user) {
           setUser(session.user);
+          setCloudStateUser(session.user.id);
           hydrateProfile(session.user.id);
         }
       } catch (err) {
@@ -123,10 +125,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (cancelled) return;
         if (session?.user) {
           setUser(session.user);
+          setCloudStateUser(session.user.id);
           hydrateProfile(session.user.id);
         } else {
           setUser(null);
           setProfile(null);
+          setCloudStateUser(null);
         }
         setLoading(false);
       }

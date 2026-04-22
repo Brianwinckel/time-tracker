@@ -7,6 +7,8 @@
 // break/lunch countdown durations.
 // ============================================================
 
+import { pushUserState } from './cloudState';
+
 /** Clock-time display: 12-hour (9:30 AM) vs 24-hour (09:30). */
 export type TimeFormat = '12h' | '24h';
 
@@ -277,4 +279,5 @@ export function savePreferences(prefs: AppPreferences): void {
   } catch {
     /* quota or privacy mode — ignore */
   }
+  pushUserState('preferences', prefs);
 }
