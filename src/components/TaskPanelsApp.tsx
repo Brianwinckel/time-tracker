@@ -12,6 +12,7 @@ import { FullscreenPanelScreen } from './screens/FullscreenPanelScreen';
 import { PickPanelScreen } from './screens/PickPanelScreen';
 import { AvatarBadge } from './AvatarBadge';
 import { TaskPanelsLogo } from './TaskPanelsLogo';
+import { SyncIndicator } from './SyncIndicator';
 
 // Lazy-loaded screens — each becomes its own code-split chunk so
 // users don't pay the download cost unless they navigate there. Home,
@@ -936,6 +937,9 @@ export const TaskPanelsApp: React.FC<TaskPanelsAppProps> = ({ authUser }) => {
   // the address/tool bars (100vh extends past the visible viewport there).
   return (
     <NavProvider value={navValue}>
+      {/* Floats top-right, hidden in the happy path. Rendered inside
+          NavProvider so a future variant can navigate on click. */}
+      <SyncIndicator />
       <div className="flex h-[100dvh] overflow-hidden bg-white">
 
         {/* ===== Desktop Sidebar ===== */}
