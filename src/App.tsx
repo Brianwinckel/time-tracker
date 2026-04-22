@@ -24,12 +24,14 @@ import { PaywallScreen } from './components/PaywallScreen';
 import { TaskPanelsApp, type TaskPanelsAuthUser } from './components/TaskPanelsApp';
 import { TaskPanelsLogo } from './components/TaskPanelsLogo';
 import { hydrateFromCloud, type StorageModule } from './lib/cloudState';
+import { hydrateRelationalFromCloud } from './lib/cloudRelational';
 import type { AuthProvider as ProfileAuthProvider } from './lib/profile';
 import { loadProfile } from './lib/profile';
 import { loadPreferences } from './lib/preferences';
 import { loadOnboarding } from './lib/onboarding';
 import { loadBreakDurations } from './lib/breakDefaults';
-import { loadCatalog } from './lib/panelCatalog';
+import { loadCatalog, loadPanels, loadRuns } from './lib/panelCatalog';
+import { loadProjects } from './lib/projects';
 
 // Modules we sync through the user_state JSON-blob table. Normalizers
 // just round-trip through the module's own loader to get default-filled,
@@ -133,13 +135,40 @@ const AppGate: React.FC = () => {
 
     let cancelled = false;
     setHydrating(true);
-    hydrateFromCloud(user.id, CLOUD_MODULES)
-      .catch(err => console.error('[App] hydrateFromCloud threw:', err))
-      .finally(() => {
-        if (cancelled) return;
+
+    // Hydration happens in two phases, sequentially:
+    //  1. JSON-blob state (profile, preferences, onboarding, break
+    //     defaults, catalog) — small, fast, needed for everything
+    //     downstream
+    //  2. Relational state (panels, runs, projects) — larger, but
+    //     the queries are indexed and typically quick
+    (async () => {
+      try {
+        await hydrateFromCloud(user.id, CLOUD_MODULES);
+      } catch (err) {
+        console.error('[App] hydrateFromCloud (blobs) threw:', err);
+      }
+      try {
+        const snapshot = await hydrateRelationalFromCloud(
+          user.id,
+          loadPanels(),
+          loadRuns(),
+          loadProjects(),
+        );
+        // Write each set back to localStorage so TaskPanelsApp's
+        // synchronous load* calls pick up the cloud-authoritative view.
+        localStorage.setItem('taskpanels.panels.v1', JSON.stringify(snapshot.panels));
+        localStorage.setItem('taskpanels.runs.v1', JSON.stringify(snapshot.runs));
+        localStorage.setItem('taskpanels.projects.v1', JSON.stringify(snapshot.projects));
+      } catch (err) {
+        console.error('[App] hydrateRelationalFromCloud threw:', err);
+      }
+      if (!cancelled) {
         setHydrating(false);
         setHydratedFor(user.id);
-      });
+      }
+    })();
+
     return () => { cancelled = true; };
   }, [user, entitlements.hasActiveSubscription, hydratedFor]);
 

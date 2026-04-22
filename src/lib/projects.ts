@@ -15,6 +15,7 @@
 // ============================================================
 
 import { colorOptionFor, type PanelColorOption } from './panelCatalog';
+import { diffPushProjects } from './cloudRelational';
 
 // ---- Entity ----
 
@@ -113,6 +114,7 @@ export function saveProjects(projects: Project[]): void {
   } catch {
     /* quota or privacy mode — ignore */
   }
+  diffPushProjects(projects);
 }
 
 // ---- Helpers ----

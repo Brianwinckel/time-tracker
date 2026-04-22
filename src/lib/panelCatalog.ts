@@ -17,6 +17,7 @@
 // ============================================================
 
 import { pushUserState } from './cloudState';
+import { diffPushPanels, diffPushRuns } from './cloudRelational';
 
 export interface MockPanel {
   id: string;
@@ -413,6 +414,7 @@ export function savePanels(panels: Panel[]): void {
   } catch {
     /* ignore */
   }
+  diffPushPanels(panels);
 }
 
 // ============================================================
@@ -481,4 +483,5 @@ export function saveRuns(runs: Run[]): void {
   } catch {
     /* ignore */
   }
+  diffPushRuns(runs);
 }
