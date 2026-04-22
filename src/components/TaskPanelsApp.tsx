@@ -172,6 +172,23 @@ export const TaskPanelsApp: React.FC<TaskPanelsAppProps> = ({ authUser }) => {
   const [screen, setScreen] = useState<PreviewScreen>(initialScreen);
   const [selectedPanelId, setSelectedPanelId] = useState<string | null>(null);
 
+  // Clean up post-checkout / post-portal query params on mount so they
+  // don't stick around through page reloads. The paywall has already
+  // done its job (we wouldn't be rendering TaskPanelsApp otherwise).
+  // First-time users auto-route to onboarding via initialScreen()'s
+  // loadOnboarding() check, so we don't need to branch on `new=1`.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.has('checkout') || params.has('portal') || params.has('new')) {
+      params.delete('checkout');
+      params.delete('portal');
+      params.delete('new');
+      const q = params.toString();
+      const cleaned = `${window.location.pathname}${q ? `?${q}` : ''}${window.location.hash}`;
+      window.history.replaceState({}, '', cleaned);
+    }
+  }, []);
+
   // ---- Catalog (PanelTypes — the templates PickPanel lists) ----
   const [panelCatalog, setPanelCatalog] = useState<MockPanel[]>(() => loadCatalog());
   useEffect(() => {

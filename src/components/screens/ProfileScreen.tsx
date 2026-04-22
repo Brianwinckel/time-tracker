@@ -6,10 +6,10 @@
 // default audience, plan/billing, and Sign Out. Settings is now
 // strictly about how the app *works*; this is about who you are.
 //
-// Plan & Billing is a placeholder: launch is free-only, so we
-// don't show a "Free Plan" card — just a row list with Manage
-// Subscription / Payment Method / Invoices marked "Soon" so the
-// slot is reserved for future subscription work.
+// Plan & Billing shows the user's active plan + renewal date, and
+// wires all three rows (Manage Subscription / Payment Method /
+// Invoices) to the Stripe Customer Portal via the stripe-portal
+// edge function. The portal covers all three surfaces on one page.
 //
 // Keeps the same SettingsShell visual language so it doesn't feel
 // like a different product.
@@ -19,15 +19,47 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useNav } from '../../lib/previewNav';
 import { AvatarBadge } from '../AvatarBadge';
 import type { AppPreferences } from '../../lib/preferences';
+import { supabase } from '../../lib/supabase';
+import { useEntitlements } from '../../context/EntitlementsContext';
+import { PLANS } from '../../lib/billing';
 
 export const ProfileScreen: React.FC = () => {
   const { navigate, userProfile, updateProfile, preferences, setPreference } = useNav();
+  const { entitlements } = useEntitlements();
   const fileRef = useRef<HTMLInputElement | null>(null);
 
   // Local draft form state — committed on Save so we can show a
   // "Saved ✓" flash and not bloat localStorage on every keystroke.
   const [draft, setDraft] = useState(userProfile);
   const [savedFlash, setSavedFlash] = useState(false);
+  const [portalLoading, setPortalLoading] = useState(false);
+  const [portalError, setPortalError] = useState<string | null>(null);
+
+  // Open the Stripe Customer Portal — the hosted page that covers
+  // subscription management, payment method update, and invoice
+  // history. All three rows below call this one handler.
+  const openPortal = async () => {
+    if (portalLoading) return;
+    setPortalError(null);
+    setPortalLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('stripe-portal', {
+        body: { appUrl: window.location.origin },
+      });
+      if (error) throw error;
+      if (!data?.url) throw new Error('No portal URL returned');
+      const url = new URL(data.url);
+      if (!url.hostname.endsWith('stripe.com')) {
+        throw new Error('Invalid portal redirect');
+      }
+      window.location.href = data.url;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to open billing portal';
+      console.error('Portal error:', err);
+      setPortalError(message);
+      setPortalLoading(false);
+    }
+  };
   useEffect(() => {
     setDraft(userProfile);
   }, [userProfile]);
@@ -398,47 +430,81 @@ export const ProfileScreen: React.FC = () => {
         </section>
 
         {/* ===== Plan & Billing =====
-             No "Free Plan" card — launch is free-only, so showing a plan
-             name would be noise. Instead we park the slot with the three
-             rows a future subscription flow will need (Manage, Payment,
-             Invoices), all marked Soon. Wire them up when Stripe lands. */}
-        <section className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-          <header className="px-5 py-4 border-b border-slate-100">
-            <h2 className="text-sm font-bold text-slate-900">Plan & Billing</h2>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Subscription, payment method, and invoices.
-            </p>
-          </header>
-          <ul>
-            {[
-              {
-                label: 'Manage Subscription',
-                hint: 'Upgrade, downgrade, or cancel your plan',
-              },
-              { label: 'Payment Method', hint: null },
-              { label: 'Invoices', hint: null },
-            ].map((item, i, arr) => (
-              <li
-                key={item.label}
-                className={`px-5 py-3 flex items-center justify-between ${
-                  i < arr.length - 1 ? 'border-b border-slate-100' : ''
-                }`}
-              >
+             Shows the active plan + renewal date, and routes all three
+             rows (Manage Subscription / Payment Method / Invoices) to
+             the Stripe Customer Portal — one hosted page covers all
+             three. Rendered only for users with an active sub (since
+             the paywall gate means anyone seeing this screen already
+             paid, this is mostly defensive). */}
+        {entitlements.subscription && (
+          <section className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+            <header className="px-5 py-4 border-b border-slate-100">
+              <div className="flex items-baseline justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="text-sm text-slate-700 truncate">{item.label}</p>
-                  {item.hint && (
-                    <p className="text-[11px] text-slate-400 truncate mt-0.5">
-                      {item.hint}
-                    </p>
-                  )}
+                  <h2 className="text-sm font-bold text-slate-900">Plan & Billing</h2>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Subscription, payment method, and invoices.
+                  </p>
                 </div>
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 shrink-0 ml-3">
-                  Soon
+                <span className="inline-flex items-center gap-1.5 shrink-0 px-2.5 py-1 rounded-full border border-blue-200 bg-blue-50">
+                  <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                  <span className="text-[11px] font-semibold text-blue-700">
+                    {PLANS[entitlements.subscription.plan].name}
+                    <span className="font-normal text-blue-500 ml-1">
+                      · {entitlements.subscription.interval === 'year' ? 'Yearly' : 'Monthly'}
+                    </span>
+                  </span>
                 </span>
-              </li>
-            ))}
-          </ul>
-        </section>
+              </div>
+              {entitlements.subscription.current_period_end && (
+                <p className="mt-2 text-[11px] text-slate-500">
+                  {entitlements.subscription.cancel_at_period_end ? 'Access until' : 'Renews'}{' '}
+                  <span className="font-medium text-slate-700">
+                    {new Date(entitlements.subscription.current_period_end).toLocaleDateString(undefined, {
+                      month: 'short', day: 'numeric', year: 'numeric',
+                    })}
+                  </span>
+                </p>
+              )}
+              {entitlements.subscription.status === 'past_due' && (
+                <p className="mt-2 text-[11px] font-semibold text-amber-700">
+                  Payment failed — update your card to keep your subscription active.
+                </p>
+              )}
+            </header>
+            <ul>
+              {[
+                { label: 'Manage Subscription', hint: 'Upgrade, downgrade, or cancel your plan' },
+                { label: 'Payment Method',      hint: 'Update the card on file' },
+                { label: 'Invoices',            hint: 'Download past receipts' },
+              ].map((item, i, arr) => (
+                <li key={item.label} className={i < arr.length - 1 ? 'border-b border-slate-100' : ''}>
+                  <button
+                    type="button"
+                    onClick={openPortal}
+                    disabled={portalLoading}
+                    className="w-full px-5 py-3 flex items-center justify-between hover:bg-slate-50 transition-colors text-left disabled:cursor-wait disabled:opacity-60"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm text-slate-700 truncate">{item.label}</p>
+                      {item.hint && (
+                        <p className="text-[11px] text-slate-400 truncate mt-0.5">{item.hint}</p>
+                      )}
+                    </div>
+                    <svg className="w-4 h-4 text-slate-400 shrink-0 ml-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path d="M9 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </button>
+                </li>
+              ))}
+            </ul>
+            {portalError && (
+              <p className="px-5 py-3 text-xs text-rose-600 border-t border-rose-100 bg-rose-50">
+                {portalError}
+              </p>
+            )}
+          </section>
+        )}
 
         {/* ===== Re-run Setup =====
              Escape hatch for users who want to change their role or

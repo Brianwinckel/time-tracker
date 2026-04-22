@@ -1,25 +1,29 @@
 // ============================================================
-// App — auth gate + the new V6 TaskPanelsApp.
+// App — auth gate + paywall gate + the new V6 TaskPanelsApp.
 //
-// The legacy AppProvider / AppShell / Dashboard / Settings etc.
-// are intentionally no longer mounted here. All state and
-// routing lives inside <TaskPanelsApp />, backed by localStorage.
-// This file also bridges Supabase's authenticated user into
-// TaskPanelsApp's profile state so the identity card picks up
-// name + email + Google avatar on first sign-in.
+// Flow:
+//   1. Not authed           → AuthScreen
+//   2. Authed, no active sub → PaywallScreen (Stripe Checkout)
+//   3. Authed + active sub   → TaskPanelsApp
+//
+// TaskPanelsApp handles the new-user vs returning distinction on
+// checkout return: if onboarding hasn't been completed, it routes
+// to the onboarding screen; otherwise straight to home.
 // ============================================================
 
 import React, { useMemo } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { EntitlementsProvider, useEntitlements } from './context/EntitlementsContext';
 import { AuthScreen } from './components/AuthScreen';
+import { PaywallScreen } from './components/PaywallScreen';
 import { TaskPanelsApp, type TaskPanelsAuthUser } from './components/TaskPanelsApp';
 import { TaskPanelsLogo } from './components/TaskPanelsLogo';
 import type { AuthProvider as ProfileAuthProvider } from './lib/profile';
 
-// Auth gate — only checks login state. A user doesn't need a team_id
-// to use TaskPanels — this is a personal time tracker first.
-const AuthGate: React.FC = () => {
-  const { user, loading } = useAuth();
+// Auth + paywall gate.
+const AppGate: React.FC = () => {
+  const { user, loading: authLoading } = useAuth();
+  const { entitlements, loading: entLoading } = useEntitlements();
 
   // Pull identity out of Supabase's user into the shape TaskPanelsApp
   // expects. Google OAuth surfaces full_name + avatar_url under
@@ -47,9 +51,11 @@ const AuthGate: React.FC = () => {
     };
   }, [user]);
 
-  // Still checking auth state — show the breathing brand mark instead
-  // of a "Loading..." text blob.
-  if (loading) {
+  // Show the breathing loader while either gate is still resolving.
+  // For signed-out users we skip the entitlement wait since there's
+  // nothing to look up.
+  const stillResolving = authLoading || (user && entLoading);
+  if (stillResolving) {
     return (
       <div className="flex flex-col items-center justify-center h-[100dvh] bg-white gap-4">
         <TaskPanelsLogo size={72} animated />
@@ -60,20 +66,22 @@ const AuthGate: React.FC = () => {
     );
   }
 
-  // Not logged in — show login screen
-  if (!user) {
-    return <AuthScreen />;
-  }
+  // Not logged in — show login screen.
+  if (!user) return <AuthScreen />;
 
-  // Fully authenticated — show the app, seeded with the Google/email
-  // identity so the profile card + sidebar avatar pick it up.
+  // Logged in but no active subscription — show the paywall.
+  if (!entitlements.hasActiveSubscription) return <PaywallScreen />;
+
+  // Fully authenticated + paid — show the app.
   return <TaskPanelsApp authUser={authUser} />;
 };
 
 function App() {
   return (
     <AuthProvider>
-      <AuthGate />
+      <EntitlementsProvider>
+        <AppGate />
+      </EntitlementsProvider>
     </AuthProvider>
   );
 }
