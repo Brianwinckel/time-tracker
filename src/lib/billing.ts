@@ -3,10 +3,14 @@
 // One source of truth for what each plan costs and includes.
 // ============================================================
 
-import type { PlanId, BillingInterval } from '../types/billing';
+import type { BillingInterval } from '../types/billing';
+
+/** Plans we surface in the UI today. 'pro' is reserved for the future
+ *  AI-powered tier and intentionally not in PLANS yet. */
+export type SurfacedPlan = 'individual' | 'team';
 
 export interface PlanDef {
-  id: PlanId;
+  id: SurfacedPlan;
   name: string;
   tagline: string;
   monthlyPrice: number;   // USD dollars
@@ -17,7 +21,7 @@ export interface PlanDef {
   comingSoon?: boolean;
 }
 
-export const PLANS: Record<PlanId, PlanDef> = {
+export const PLANS: Record<SurfacedPlan, PlanDef> = {
   individual: {
     id: 'individual',
     name: 'Individual',

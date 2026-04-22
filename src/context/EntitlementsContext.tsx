@@ -18,7 +18,7 @@ import React, {
 import { supabase } from '../lib/supabase';
 import { useAuth } from './AuthContext';
 import type {
-  ResolvedEntitlements, Entitlement, Subscription, PlanId,
+  ResolvedEntitlements, Entitlement, Subscription, PlanId, PlanOrNone,
 } from '../types/billing';
 
 interface EntitlementsContextValue {
@@ -41,6 +41,7 @@ const Context = createContext<EntitlementsContextValue>({
 });
 
 const ACTIVE_STATUSES: ReadonlySet<string> = new Set(['active', 'trialing']);
+const PAID_PLANS: ReadonlySet<PlanOrNone> = new Set<PlanOrNone>(['individual', 'pro', 'team']);
 
 async function fetchEntitlements(userId: string): Promise<ResolvedEntitlements> {
   const { data: entRow } = await supabase
@@ -60,7 +61,13 @@ async function fetchEntitlements(userId: string): Promise<ResolvedEntitlements> 
   }
 
   const entitlement = (entRow as Entitlement | null) ?? null;
-  const hasActive = !!subRow && ACTIVE_STATUSES.has(subRow.status);
+  // Gate on the combination: sub must exist, be active, AND the
+  // entitlement must name a real paid tier. Without all three we
+  // route to the paywall.
+  const hasActive = !!subRow
+    && ACTIVE_STATUSES.has(subRow.status)
+    && !!entitlement
+    && PAID_PLANS.has(entitlement.plan);
 
   return {
     plan: hasActive ? (entitlement!.plan as PlanId) : 'none',

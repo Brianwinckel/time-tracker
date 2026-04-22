@@ -449,9 +449,11 @@ export const ProfileScreen: React.FC = () => {
                 <span className="inline-flex items-center gap-1.5 shrink-0 px-2.5 py-1 rounded-full border border-blue-200 bg-blue-50">
                   <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
                   <span className="text-[11px] font-semibold text-blue-700">
-                    {PLANS[entitlements.subscription.plan].name}
+                    {(entitlements.subscription.plan === 'individual' || entitlements.subscription.plan === 'team'
+                      ? PLANS[entitlements.subscription.plan].name
+                      : entitlements.subscription.plan)}
                     <span className="font-normal text-blue-500 ml-1">
-                      · {entitlements.subscription.interval === 'year' ? 'Yearly' : 'Monthly'}
+                      · {entitlements.subscription.billing_interval === 'year' ? 'Yearly' : 'Monthly'}
                     </span>
                   </span>
                 </span>

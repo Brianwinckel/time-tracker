@@ -13,8 +13,8 @@ import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { TaskPanelsLogo } from './TaskPanelsLogo';
-import { PLANS, formatPrice, periodLabel } from '../lib/billing';
-import type { BillingInterval, PlanId } from '../types/billing';
+import { PLANS, formatPrice, periodLabel, type SurfacedPlan } from '../lib/billing';
+import type { BillingInterval } from '../types/billing';
 
 const CheckIcon = () => (
   <svg className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -25,10 +25,10 @@ const CheckIcon = () => (
 export const PaywallScreen: React.FC = () => {
   const { signOut, user } = useAuth();
   const [interval, setInterval] = useState<BillingInterval>('month');
-  const [loading, setLoading] = useState<PlanId | null>(null);
+  const [loading, setLoading] = useState<SurfacedPlan | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const handleSubscribe = async (plan: PlanId) => {
+  const handleSubscribe = async (plan: SurfacedPlan) => {
     if (PLANS[plan].comingSoon) return;
     setError(null);
     setLoading(plan);
