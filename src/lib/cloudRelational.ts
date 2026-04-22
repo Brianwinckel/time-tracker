@@ -19,6 +19,8 @@ import { supabase } from './supabase';
 import { getCloudStateUser } from './cloudState';
 import type { Panel, Run } from './panelCatalog';
 import type { Project } from './projects';
+import type { SummaryInput } from './summaryModel';
+import type { SavedSummaryMap } from './savedSummaries';
 
 // ---- Row-shape ↔ DB-shape mapping ---------------------------
 
@@ -45,6 +47,14 @@ interface DbProjectRow {
   archived: boolean;
   data: Omit<Project, 'id' | 'archived' | 'createdAt'>;
   created_at: string;
+  updated_at?: string;
+}
+
+interface DbSavedSummaryRow {
+  user_id: string;
+  date_key: string;
+  data: SummaryInput;
+  created_at?: string;
   updated_at?: string;
 }
 
@@ -111,6 +121,22 @@ interface Pending {
   upserts: Map<string, unknown>;
   deletes: Set<string>;
 }
+
+// Per-table conflict + delete config. Most tables key on `id`, but
+// user_saved_summaries has a composite PK (user_id, date_key), so the
+// delete path filters on date_key scoped to the current user.
+interface TableConfig {
+  onConflict: string;                // passed to supabase .upsert()
+  deleteFilterColumn: string;        // column used in .in(...) for deletes
+  scopeDeletesToUser?: boolean;      // add .eq('user_id', userId) on delete
+}
+const TABLE_CONFIG: Record<string, TableConfig> = {
+  user_panels:            { onConflict: 'id',                  deleteFilterColumn: 'id' },
+  user_runs:              { onConflict: 'id',                  deleteFilterColumn: 'id' },
+  user_projects:          { onConflict: 'id',                  deleteFilterColumn: 'id' },
+  user_saved_summaries:   { onConflict: 'user_id,date_key',    deleteFilterColumn: 'date_key', scopeDeletesToUser: true },
+};
+
 const pendings: Record<string, Pending> = {};
 const flushTimers: Record<string, number> = {};
 const FLUSH_MS = 500;
@@ -133,16 +159,27 @@ function scheduleFlush(table: string): void {
 async function flush(table: string): Promise<void> {
   const p = pendings[table];
   if (!p) return;
+  const cfg = TABLE_CONFIG[table];
+  if (!cfg) {
+    console.error(`[cloudRelational] no TABLE_CONFIG for ${table}`);
+    return;
+  }
   const upserts = Array.from(p.upserts.values());
   const deletes = Array.from(p.deletes);
   pendings[table] = { upserts: new Map(), deletes: new Set() };
 
   if (upserts.length > 0) {
-    const { error } = await supabase.from(table).upsert(upserts, { onConflict: 'id' });
+    const { error } = await supabase.from(table).upsert(upserts, { onConflict: cfg.onConflict });
     if (error) console.error(`[cloudRelational] ${table} upsert:`, error.message);
   }
   if (deletes.length > 0) {
-    const { error } = await supabase.from(table).delete().in('id', deletes);
+    let q = supabase.from(table).delete().in(cfg.deleteFilterColumn, deletes);
+    if (cfg.scopeDeletesToUser) {
+      const userId = getCloudStateUser();
+      if (!userId) return;
+      q = q.eq('user_id', userId);
+    }
+    const { error } = await q;
     if (error) console.error(`[cloudRelational] ${table} delete:`, error.message);
   }
 }
@@ -229,12 +266,65 @@ export function diffPushProjects(next: Project[]): void {
   lastProjects = next.map(p => ({ ...p }));
 }
 
+// ---- Public API: Saved summaries ----------------------------
+//
+// The app holds these as a SavedSummaryMap (date-key → SummaryInput).
+// The DB composite key is (user_id, date_key), so the diff is
+// per-date-key. Deletes happen on workspace reset or manual removal.
+
+let lastSummaryKeys: Set<string> = new Set();
+let lastSummaryHashByKey: Map<string, string> = new Map();
+
+export function bindSavedSummariesBaseline(map: SavedSummaryMap): void {
+  lastSummaryKeys = new Set(Object.keys(map));
+  lastSummaryHashByKey = new Map(
+    Object.entries(map).map(([k, v]) => [k, JSON.stringify(v)]),
+  );
+}
+
+// For composite-keyed tables we use the date_key string as the
+// Pending map key (pending.upserts / pending.deletes are indexed
+// by string id, which works here since date_key is a string).
+export function diffPushSavedSummaries(next: SavedSummaryMap): void {
+  const userId = getCloudStateUser();
+  if (!userId) return;
+  const pending = getPending('user_saved_summaries');
+
+  const nextEntries = Object.entries(next);
+  for (const [dateKey, summary] of nextEntries) {
+    const prevHash = lastSummaryHashByKey.get(dateKey);
+    const nextHash = JSON.stringify(summary);
+    if (prevHash !== nextHash) {
+      pending.upserts.set(dateKey, {
+        user_id: userId,
+        date_key: dateKey,
+        data: summary,
+        updated_at: new Date().toISOString(),
+      } as DbSavedSummaryRow);
+    }
+  }
+  const nextKeys = new Set(Object.keys(next));
+  for (const prevKey of lastSummaryKeys) {
+    if (!nextKeys.has(prevKey)) pending.deletes.add(prevKey);
+  }
+
+  if (pending.upserts.size > 0 || pending.deletes.size > 0) {
+    scheduleFlush('user_saved_summaries');
+  }
+
+  lastSummaryKeys = nextKeys;
+  lastSummaryHashByKey = new Map(
+    nextEntries.map(([k, v]) => [k, JSON.stringify(v)]),
+  );
+}
+
 // ---- Hydration ----------------------------------------------
 
 export interface RelationalSnapshot {
   panels: Panel[];
   runs: Run[];
   projects: Project[];
+  savedSummaries: SavedSummaryMap;
 }
 
 /**
@@ -254,11 +344,13 @@ export async function hydrateRelationalFromCloud(
   localPanels: Panel[],
   localRuns: Run[],
   localProjects: Project[],
+  localSavedSummaries: SavedSummaryMap,
 ): Promise<RelationalSnapshot> {
-  const [panelsRes, runsRes, projectsRes] = await Promise.all([
+  const [panelsRes, runsRes, projectsRes, summariesRes] = await Promise.all([
     supabase.from('user_panels').select('*').eq('user_id', userId),
     supabase.from('user_runs').select('*').eq('user_id', userId),
     supabase.from('user_projects').select('*').eq('user_id', userId),
+    supabase.from('user_saved_summaries').select('*').eq('user_id', userId),
   ]);
 
   // --- Panels ---
@@ -310,10 +402,37 @@ export async function hydrateRelationalFromCloud(
     projects = [];
   }
 
+  // --- Saved summaries ---
+  let savedSummaries: SavedSummaryMap;
+  const localSavedKeys = Object.keys(localSavedSummaries);
+  if (summariesRes.error) {
+    console.error('[cloudRelational] saved summaries fetch:', summariesRes.error.message);
+    savedSummaries = localSavedSummaries;
+  } else if ((summariesRes.data ?? []).length > 0) {
+    savedSummaries = {};
+    for (const row of summariesRes.data as DbSavedSummaryRow[]) {
+      savedSummaries[row.date_key] = row.data;
+    }
+  } else if (localSavedKeys.length > 0) {
+    const rows: DbSavedSummaryRow[] = localSavedKeys.map(k => ({
+      user_id: userId,
+      date_key: k,
+      data: localSavedSummaries[k],
+    }));
+    const { error } = await supabase
+      .from('user_saved_summaries')
+      .upsert(rows, { onConflict: 'user_id,date_key' });
+    if (error) console.error('[cloudRelational] initial saved summaries upload:', error.message);
+    savedSummaries = localSavedSummaries;
+  } else {
+    savedSummaries = {};
+  }
+
   // Set diff baselines so the next save pushes only real changes.
   bindPanelsBaseline(panels);
   bindRunsBaseline(runs);
   bindProjectsBaseline(projects);
+  bindSavedSummariesBaseline(savedSummaries);
 
-  return { panels, runs, projects };
+  return { panels, runs, projects, savedSummaries };
 }

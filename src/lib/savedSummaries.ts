@@ -24,6 +24,7 @@
 
 import type { SummaryInput } from './summaryModel';
 import { toIsoDate } from './dateUtils';
+import { diffPushSavedSummaries } from './cloudRelational';
 
 const STORAGE_KEY = 'tp.savedSummaries.v1';
 
@@ -56,6 +57,7 @@ export function saveSavedSummaries(map: SavedSummaryMap): void {
   } catch {
     /* quota exceeded or disabled — swallow */
   }
+  diffPushSavedSummaries(map);
 }
 
 /** Derive the YYYY-MM-DD key for a SummaryInput from the local

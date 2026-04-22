@@ -32,6 +32,7 @@ import { loadOnboarding } from './lib/onboarding';
 import { loadBreakDurations } from './lib/breakDefaults';
 import { loadCatalog, loadPanels, loadRuns } from './lib/panelCatalog';
 import { loadProjects } from './lib/projects';
+import { loadSavedSummaries } from './lib/savedSummaries';
 
 // Modules we sync through the user_state JSON-blob table. Normalizers
 // just round-trip through the module's own loader to get default-filled,
@@ -154,12 +155,14 @@ const AppGate: React.FC = () => {
           loadPanels(),
           loadRuns(),
           loadProjects(),
+          loadSavedSummaries(),
         );
         // Write each set back to localStorage so TaskPanelsApp's
         // synchronous load* calls pick up the cloud-authoritative view.
         localStorage.setItem('taskpanels.panels.v1', JSON.stringify(snapshot.panels));
         localStorage.setItem('taskpanels.runs.v1', JSON.stringify(snapshot.runs));
         localStorage.setItem('taskpanels.projects.v1', JSON.stringify(snapshot.projects));
+        localStorage.setItem('tp.savedSummaries.v1', JSON.stringify(snapshot.savedSummaries));
       } catch (err) {
         console.error('[App] hydrateRelationalFromCloud threw:', err);
       }
