@@ -15,6 +15,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { TaskPanelsLogo } from './TaskPanelsLogo';
 
 type AuthMode = 'signin' | 'verify' | 'signup' | 'forgot' | 'reset';
 
@@ -237,11 +238,7 @@ export const AuthScreen: React.FC = () => {
   const Card: React.FC<{ children: React.ReactNode }> = ({ children }) => (
     <div className="min-h-[100dvh] flex items-center justify-center bg-[#f5f6fa] px-6 font-sans">
       <div className="w-full max-w-[400px] bg-white rounded-xl border border-[#dde0ea] shadow-[0_8px_24px_rgba(0,0,0,0.12)] px-10 pt-12 pb-10 text-center">
-        <img
-          src="/logo-light.svg"
-          alt="TaskPanels"
-          className="h-11 w-auto block mx-auto mb-6"
-        />
+        <TaskPanelsLogo wordmark size={40} className="mb-6" />
         {children}
       </div>
     </div>
