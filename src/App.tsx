@@ -25,6 +25,7 @@ import { TaskPanelsApp, type TaskPanelsAuthUser } from './components/TaskPanelsA
 import { TaskPanelsLogo } from './components/TaskPanelsLogo';
 import { hydrateFromCloud, type StorageModule } from './lib/cloudState';
 import { hydrateRelationalFromCloud } from './lib/cloudRelational';
+import { installDrainTriggers, stopDrainTriggers } from './lib/cloudQueue';
 import type { AuthProvider as ProfileAuthProvider } from './lib/profile';
 import { loadProfile } from './lib/profile';
 import { loadPreferences } from './lib/preferences';
@@ -169,11 +170,22 @@ const AppGate: React.FC = () => {
       if (!cancelled) {
         setHydrating(false);
         setHydratedFor(user.id);
+        // Start the retry-queue drainer now that the user is known
+        // and initial hydration has run. This flushes any writes that
+        // failed during a previous session / last visit.
+        installDrainTriggers();
       }
     })();
 
     return () => { cancelled = true; };
   }, [user, entitlements.hasActiveSubscription, hydratedFor]);
+
+  // Tear down the drain timer when the user signs out. The focus/
+  // online listeners become no-ops (getCloudStateUser() returns null),
+  // but the periodic interval should stop to avoid doing needless work.
+  useEffect(() => {
+    if (!user) stopDrainTriggers();
+  }, [user]);
 
   // Show the breathing loader while any gate is still resolving.
   const stillResolving = authLoading || (user && entLoading) ||

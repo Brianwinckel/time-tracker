@@ -15,6 +15,7 @@
 // ============================================================
 
 import { supabase } from './supabase';
+import { enqueue } from './cloudQueue';
 
 export type StateKey = 'profile' | 'preferences' | 'onboarding' | 'break_defaults' | 'catalog';
 
@@ -52,16 +53,18 @@ export function pushUserState<T>(key: StateKey, value: T, ms = DEFAULT_DEBOUNCE_
   if (pushTimers[key]) window.clearTimeout(pushTimers[key]);
   pushTimers[key] = window.setTimeout(async () => {
     delete pushTimers[key];
+    const row = { user_id: userId, [key]: value, updated_at: new Date().toISOString() };
     try {
       const { error } = await supabase
         .from('user_state')
-        .upsert(
-          { user_id: userId, [key]: value, updated_at: new Date().toISOString() },
-          { onConflict: 'user_id' },
-        );
-      if (error) console.error(`[cloudState] upsert ${key} failed:`, error.message);
+        .upsert(row, { onConflict: 'user_id' });
+      if (error) {
+        console.error(`[cloudState] upsert ${key} failed:`, error.message);
+        enqueue('user_state', 'upsert', row, { onConflict: 'user_id' });
+      }
     } catch (err) {
       console.error('[cloudState] push threw:', err);
+      enqueue('user_state', 'upsert', row, { onConflict: 'user_id' });
     }
   }, ms);
 }

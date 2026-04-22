@@ -17,6 +17,7 @@
 
 import { supabase } from './supabase';
 import { getCloudStateUser } from './cloudState';
+import { enqueue } from './cloudQueue';
 import type { Panel, Run } from './panelCatalog';
 import type { Project } from './projects';
 import type { SummaryInput } from './summaryModel';
@@ -169,18 +170,40 @@ async function flush(table: string): Promise<void> {
   pendings[table] = { upserts: new Map(), deletes: new Set() };
 
   if (upserts.length > 0) {
-    const { error } = await supabase.from(table).upsert(upserts, { onConflict: cfg.onConflict });
-    if (error) console.error(`[cloudRelational] ${table} upsert:`, error.message);
+    try {
+      const { error } = await supabase.from(table).upsert(upserts, { onConflict: cfg.onConflict });
+      if (error) {
+        console.error(`[cloudRelational] ${table} upsert:`, error.message);
+        enqueue(table, 'upsert', upserts, { onConflict: cfg.onConflict });
+      }
+    } catch (err) {
+      console.error(`[cloudRelational] ${table} upsert threw:`, err);
+      enqueue(table, 'upsert', upserts, { onConflict: cfg.onConflict });
+    }
   }
   if (deletes.length > 0) {
-    let q = supabase.from(table).delete().in(cfg.deleteFilterColumn, deletes);
-    if (cfg.scopeDeletesToUser) {
-      const userId = getCloudStateUser();
-      if (!userId) return;
-      q = q.eq('user_id', userId);
+    try {
+      let q = supabase.from(table).delete().in(cfg.deleteFilterColumn, deletes);
+      if (cfg.scopeDeletesToUser) {
+        const userId = getCloudStateUser();
+        if (!userId) return;
+        q = q.eq('user_id', userId);
+      }
+      const { error } = await q;
+      if (error) {
+        console.error(`[cloudRelational] ${table} delete:`, error.message);
+        enqueue(table, 'delete', deletes, {
+          filterColumn: cfg.deleteFilterColumn,
+          scopeToUser: cfg.scopeDeletesToUser,
+        });
+      }
+    } catch (err) {
+      console.error(`[cloudRelational] ${table} delete threw:`, err);
+      enqueue(table, 'delete', deletes, {
+        filterColumn: cfg.deleteFilterColumn,
+        scopeToUser: cfg.scopeDeletesToUser,
+      });
     }
-    const { error } = await q;
-    if (error) console.error(`[cloudRelational] ${table} delete:`, error.message);
   }
 }
 
