@@ -23,6 +23,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -127,15 +128,37 @@ Deno.serve(async (req: Request) => {
       return json(500, { error: `Failed to create invite: ${inviteErr.message}` });
     }
 
-    // Send the email. If this fails, the invite row is still usable
-    // (admin can "resend" later by calling this function again, which
-    // short-circuits at the pending check; TODO: add resend path).
+    // Try the admin invite first (creates auth.users + sends branded
+    // invite email). If the email is already registered (e.g. they
+    // previously signed up via OTP), fall back to a magic-link sign-in
+    // — on sign-in, accept_pending_team_invite() picks up the pending
+    // row and wires the profile onto the team.
     const { error: emailErr } = await supabase.auth.admin.inviteUserByEmail(email, {
       redirectTo: `${appUrl}/?invite=accepted`,
     });
+
     if (emailErr) {
+      const alreadyRegistered = /already.*registered|already been registered/i.test(emailErr.message);
+      if (alreadyRegistered) {
+        const publicClient = createClient(supabaseUrl, anonKey);
+        const { error: otpErr } = await publicClient.auth.signInWithOtp({
+          email,
+          options: {
+            emailRedirectTo: `${appUrl}/?invite=accepted`,
+            shouldCreateUser: false,
+          },
+        });
+        if (otpErr) {
+          console.error('[invite] magic-link fallback failed:', otpErr.message);
+          return json(500, {
+            error: `Invite row created but email send failed: ${otpErr.message}`,
+            inviteId: invite?.id,
+          });
+        }
+        return json(200, { ok: true, inviteId: invite?.id, existingUser: true });
+      }
+
       console.error('[invite] email send failed:', emailErr.message);
-      // Surface the error but leave the pending row in place.
       return json(500, {
         error: `Invite row created but email send failed: ${emailErr.message}`,
         inviteId: invite?.id,
