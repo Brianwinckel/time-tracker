@@ -367,11 +367,12 @@ export const ProfileScreen: React.FC = () => {
         {/* ===== Plan & Billing =====
              Shows the active plan + renewal date, and routes all three
              rows (Manage Subscription / Payment Method / Invoices) to
-             the Stripe Customer Portal — one hosted page covers all
-             three. Rendered only for users with an active sub (since
-             the paywall gate means anyone seeing this screen already
-             paid, this is mostly defensive). */}
-        {entitlements.subscription && (
+             the Stripe Customer Portal. Hidden for team members —
+             their access comes via the owner's subscription, which is
+             managed from the Team admin screen, not the personal
+             profile. Individual subscribers (source='user_subscription'
+             or any non-team-membership source) keep the section. */}
+        {entitlements.subscription && entitlements.entitlement?.source !== 'team_membership' && (
           <section className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
             <header className="px-5 py-4 border-b border-slate-100">
               <div className="flex items-baseline justify-between gap-3">
