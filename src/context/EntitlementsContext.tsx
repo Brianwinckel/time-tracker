@@ -78,7 +78,7 @@ async function fetchEntitlements(userId: string): Promise<ResolvedEntitlements> 
 }
 
 export function EntitlementsProvider({ children }: { children: React.ReactNode }) {
-  const { user, loading: authLoading } = useAuth();
+  const { user, profile, loading: authLoading } = useAuth();
   const [entitlements, setEntitlements] = useState<ResolvedEntitlements>(DEFAULT);
   const [loading, setLoading] = useState(true);
   const pollTimerRef = useRef<number | null>(null);
@@ -100,11 +100,14 @@ export function EntitlementsProvider({ children }: { children: React.ReactNode }
     }
   }, [user]);
 
-  // Kick off an initial load + subscribe to user changes.
+  // Kick off an initial load + subscribe to user changes. Also refetches
+  // when profile.team_id changes — covers the invite-accept race where
+  // accept_pending_team_invite() writes the entitlement *after* our
+  // initial fetch ran against the pre-acceptance 'free' row.
   useEffect(() => {
     if (authLoading) return;
     refresh();
-  }, [authLoading, refresh]);
+  }, [authLoading, refresh, profile?.team_id]);
 
   // Post-checkout race: if we arrive with ?checkout=success and the
   // entitlement isn't active yet, poll every 1.5s up to 15s. The
