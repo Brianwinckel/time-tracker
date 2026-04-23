@@ -1,12 +1,25 @@
 // ============================================================
-// stripe-webhook (deployed v8 — mirrors the version running in
-// Supabase Edge Functions). Deploy with:
+// stripe-webhook (deployed v10 — fixes race between concurrent
+// subscription.created/updated events). Deploy with:
 //
 //   supabase functions deploy stripe-webhook --no-verify-jwt
 //
 // The --no-verify-jwt flag is REQUIRED — Stripe does not send a
 // Supabase JWT. The function verifies the request using the Stripe
 // signature header against STRIPE_WEBHOOK_SECRET instead.
+//
+// v10: upsertSubscriptionAndEntitlements now re-retrieves the sub
+// from Stripe before writing. Under load, Stripe can deliver
+// subscription.created (status=incomplete) and .updated (status=
+// active) within milliseconds, and our edge functions run
+// concurrently — the older-state event can land in the DB last
+// and stick the sub at incomplete. Re-fetching guarantees every
+// upsert writes the latest truth.
+//
+// v9: checkout.session.completed handler creates the teams row,
+// wires the creator's profile (team_id, department_id, team_role),
+// and inserts billing_customers scoped to the team — atomically,
+// only after Stripe confirms payment.
 // ============================================================
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
@@ -129,88 +142,204 @@ Deno.serve(async (req: Request) => {
   let subRefForLog: string | null = null;
   let customerRefForLog: string | null = null;
 
+  // Shared subscription+entitlement upsert logic. Called from both
+  // `customer.subscription.*` events and `checkout.session.completed`
+  // (the latter bootstraps teams and needs to write the subscription
+  // row itself, since sub.created may have arrived first and been
+  // skipped for lack of a billing_customer).
+  type SupabaseClient = ReturnType<typeof createClient>;
+  async function upsertSubscriptionAndEntitlements(
+    supabaseClient: SupabaseClient,
+    sub: Stripe.Subscription,
+  ): Promise<void> {
+    // Stripe can deliver customer.subscription.created and .updated
+    // events within milliseconds of each other, and our edge-function
+    // instances run concurrently. If .created (status=incomplete)
+    // lands in the DB *after* .updated (status=active) because of a
+    // scheduling hiccup, the row gets stuck incomplete.
+    //
+    // Always re-retrieve the current state from Stripe so every
+    // upsert writes the latest truth, regardless of event ordering.
+    try {
+      sub = await stripe.subscriptions.retrieve(sub.id);
+    } catch (err) {
+      console.warn(`[webhook] sub re-fetch failed, using event payload:`, (err as Error).message);
+    }
+
+    const customerId = typeof sub.customer === 'string' ? sub.customer : sub.customer.id;
+    const priceId = sub.items.data[0]?.price?.id || '';
+    const plan = mapPriceIdToPlan(priceId);
+    const interval = mapInterval(priceId);
+
+    console.log(`[webhook] upsert sub ${sub.id} status=${sub.status} plan=${plan}`);
+
+    const { data: bc, error: bcErr } = await supabaseClient
+      .from('billing_customers').select('*').eq('stripe_customer_id', customerId).single();
+    if (bcErr) {
+      console.error('[webhook] billing_customer lookup failed:', bcErr.message);
+      throw new Error(`billing_customer lookup: ${bcErr.message}`);
+    }
+    if (!bc) {
+      // Expected when sub.created fires before checkout.session.completed
+      // for a new-team purchase. The checkout.session.completed handler
+      // will catch up by calling this function once the bootstrap is done.
+      console.log('[webhook] no billing_customer yet for:', customerId, '— deferring');
+      return;
+    }
+
+    const { start: periodStart, end: periodEnd } = periodFromSub(sub);
+    const nowIso = new Date().toISOString();
+    const fallbackEnd = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+    const periodStartISO = isoFromUnix(periodStart) ?? nowIso;
+    const periodEndISO   = isoFromUnix(periodEnd)   ?? fallbackEnd;
+    const quantity = sub.items.data[0]?.quantity || 1;
+
+    const { data: subRow, error: subErr } = await supabaseClient
+      .from('subscriptions').upsert({
+        billing_customer_id: bc.id,
+        stripe_subscription_id: sub.id,
+        stripe_price_id: priceId,
+        plan,
+        status: sub.status,
+        billing_interval: interval,
+        current_period_start: periodStartISO,
+        current_period_end:   periodEndISO,
+        cancel_at_period_end: sub.cancel_at_period_end,
+        trial_end:            isoFromUnix(sub.trial_end),
+        quantity,
+        updated_at: nowIso,
+      }, { onConflict: 'stripe_subscription_id' }).select('id').single();
+
+    if (subErr) {
+      console.error('[webhook] subscription upsert failed:', JSON.stringify(subErr));
+      throw new Error(`subscription upsert: ${subErr.message}`);
+    }
+
+    // Keep teams.seats_purchased in sync with Stripe's quantity so
+    // the app can show "X of Y seats used" without hitting Stripe.
+    if (bc.team_id) {
+      await supabaseClient
+        .from('teams').update({ seats_purchased: quantity }).eq('id', bc.team_id);
+    }
+
+    const isActive = ['active', 'trialing'].includes(sub.status);
+    const features = isActive ? getFeaturesForPlan(plan) : FREE_FEATURES;
+    const entPlan = isActive ? plan : 'free';
+    const entSource = isActive ? (bc.team_id ? 'team_membership' : 'subscription') : 'default';
+    const validUntil = isActive ? periodEndISO : null;
+
+    const writeEntitlement = async (userId: string) => {
+      const { error } = await supabaseClient.from('entitlements').upsert({
+        user_id: userId, plan: entPlan, source: entSource, features,
+        subscription_id: subRow?.id ?? null,
+        valid_until: validUntil,
+        updated_at: nowIso,
+      }, { onConflict: 'user_id' });
+      if (error) {
+        console.error('[webhook] entitlement upsert failed:', JSON.stringify(error));
+        throw new Error(`entitlement upsert: ${error.message}`);
+      }
+    };
+
+    if (bc.user_id) {
+      await writeEntitlement(bc.user_id);
+    } else if (bc.team_id) {
+      const { data: members } = await supabaseClient
+        .from('profiles').select('id').eq('team_id', bc.team_id);
+      for (const m of (members || [])) await writeEntitlement(m.id);
+    }
+  }
+
   try {
     switch (event.type) {
+      case 'checkout.session.completed': {
+        const session = event.data.object as Stripe.Checkout.Session;
+        const md = session.metadata || {};
+        customerRefForLog = typeof session.customer === 'string'
+          ? session.customer
+          : session.customer?.id ?? null;
+
+        // Backfill profile.name from Stripe's billing details when empty.
+        const billingName = session.customer_details?.name?.trim();
+        if (md.user_id && billingName) {
+          const { data: prof } = await supabase
+            .from('profiles').select('name').eq('id', md.user_id).single();
+          if (prof && !prof.name?.trim()) {
+            await supabase.from('profiles').update({ name: billingName }).eq('id', md.user_id);
+          }
+        }
+
+        // Individual checkouts have their billing_customers row created
+        // pre-checkout by the edge function; nothing to bootstrap here.
+        if (md.mode !== 'team') break;
+
+        const userId = md.user_id;
+        const teamName = md.team_name;
+        const seats = parseInt(md.seats || '0', 10);
+        const customerId = customerRefForLog;
+
+        if (!userId || !teamName || !customerId || !seats) {
+          console.error('[webhook] team session missing metadata:', md);
+          break;
+        }
+
+        // Idempotency: if the creator already has a team_id, bootstrap
+        // already ran (Stripe can redeliver this event).
+        const { data: existingProfile } = await supabase
+          .from('profiles').select('team_id').eq('id', userId).single();
+
+        if (!existingProfile?.team_id) {
+          const { data: team, error: teamErr } = await supabase
+            .from('teams')
+            .insert({ name: teamName, created_by: userId, seats_purchased: seats })
+            .select('id, default_department_id')
+            .single();
+          if (teamErr || !team) {
+            console.error('[webhook] team insert failed:', teamErr?.message);
+            throw new Error(`team insert: ${teamErr?.message}`);
+          }
+
+          const { error: profErr } = await supabase
+            .from('profiles')
+            .update({
+              team_id: team.id,
+              department_id: team.default_department_id,
+              team_role: 'owner',
+            })
+            .eq('id', userId);
+          if (profErr) {
+            console.error('[webhook] profile update failed:', profErr.message);
+            throw new Error(`profile update: ${profErr.message}`);
+          }
+
+          const { error: bcErr } = await supabase
+            .from('billing_customers')
+            .insert({ team_id: team.id, stripe_customer_id: customerId });
+          if (bcErr) {
+            console.error('[webhook] billing_customer insert failed:', bcErr.message);
+            throw new Error(`billing_customer insert: ${bcErr.message}`);
+          }
+        }
+
+        // Catch-up: sub.created may have arrived first and bailed for
+        // missing billing_customer. Now that it exists, upsert the sub.
+        if (session.subscription) {
+          const subId = typeof session.subscription === 'string'
+            ? session.subscription
+            : session.subscription.id;
+          subRefForLog = subId;
+          const fullSub = await stripe.subscriptions.retrieve(subId);
+          await upsertSubscriptionAndEntitlements(supabase, fullSub);
+        }
+        break;
+      }
+
       case 'customer.subscription.created':
       case 'customer.subscription.updated': {
         const sub = event.data.object as Stripe.Subscription;
-        const customerId = typeof sub.customer === 'string' ? sub.customer : sub.customer.id;
-        const priceId = sub.items.data[0]?.price?.id || '';
-        const plan = mapPriceIdToPlan(priceId);
-        const interval = mapInterval(priceId);
         subRefForLog = sub.id;
-        customerRefForLog = customerId;
-
-        console.log(`[webhook] sub ${sub.id} status=${sub.status} plan=${plan} interval=${interval}`);
-
-        const { data: bc, error: bcErr } = await supabase
-          .from('billing_customers').select('*').eq('stripe_customer_id', customerId).single();
-        if (bcErr) {
-          console.error('[webhook] billing_customer lookup failed:', bcErr.message);
-          throw new Error(`billing_customer lookup: ${bcErr.message}`);
-        }
-        if (!bc) {
-          console.error('[webhook] no billing_customer for:', customerId);
-          break;
-        }
-        console.log(`[webhook] bc.id=${bc.id} user_id=${bc.user_id} team_id=${bc.team_id}`);
-
-        const { start: periodStart, end: periodEnd } = periodFromSub(sub);
-        const nowIso = new Date().toISOString();
-        const fallbackEnd = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-        const periodStartISO = isoFromUnix(periodStart) ?? nowIso;
-        const periodEndISO   = isoFromUnix(periodEnd)   ?? fallbackEnd;
-
-        console.log(`[webhook] upserting subscription row...`);
-        const { data: subRow, error: subErr } = await supabase
-          .from('subscriptions').upsert({
-            billing_customer_id: bc.id,
-            stripe_subscription_id: sub.id,
-            stripe_price_id: priceId,
-            plan,
-            status: sub.status,
-            billing_interval: interval,
-            current_period_start: periodStartISO,
-            current_period_end:   periodEndISO,
-            cancel_at_period_end: sub.cancel_at_period_end,
-            trial_end:            isoFromUnix(sub.trial_end),
-            quantity: sub.items.data[0]?.quantity || 1,
-            updated_at: nowIso,
-          }, { onConflict: 'stripe_subscription_id' }).select('id').single();
-
-        if (subErr) {
-          console.error('[webhook] subscription upsert failed:', JSON.stringify(subErr));
-          throw new Error(`subscription upsert: ${subErr.message}`);
-        }
-        console.log(`[webhook] subscription row id=${subRow?.id}`);
-
-        const isActive = ['active', 'trialing'].includes(sub.status);
-        const features = isActive ? getFeaturesForPlan(plan) : FREE_FEATURES;
-        const entPlan = isActive ? plan : 'free';
-        const entSource = isActive ? (bc.team_id ? 'team_membership' : 'subscription') : 'default';
-        const validUntil = isActive ? periodEndISO : null;
-
-        const writeEntitlement = async (userId: string) => {
-          console.log(`[webhook] upserting entitlement for user=${userId} plan=${entPlan} source=${entSource}`);
-          const { data, error } = await supabase.from('entitlements').upsert({
-            user_id: userId, plan: entPlan, source: entSource, features,
-            subscription_id: subRow?.id ?? null,
-            valid_until: validUntil,
-            updated_at: nowIso,
-          }, { onConflict: 'user_id' }).select('user_id').single();
-          if (error) {
-            console.error('[webhook] entitlement upsert failed:', JSON.stringify(error));
-            throw new Error(`entitlement upsert: ${error.message}`);
-          }
-          console.log(`[webhook] entitlement written for user=${data?.user_id}`);
-        };
-
-        if (bc.user_id) {
-          await writeEntitlement(bc.user_id);
-        } else if (bc.team_id) {
-          const { data: members } = await supabase.from('profiles').select('id').eq('team_id', bc.team_id);
-          for (const m of (members || [])) await writeEntitlement(m.id);
-        }
+        customerRefForLog = typeof sub.customer === 'string' ? sub.customer : sub.customer.id;
+        await upsertSubscriptionAndEntitlements(supabase, sub);
         break;
       }
 

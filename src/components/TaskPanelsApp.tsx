@@ -22,7 +22,9 @@ const PrepareSummaryScreen    = lazy(() => import('./screens/PrepareSummaryScree
 const DailyWorkSummaryScreen  = lazy(() => import('./screens/DailyWorkSummaryScreen').then(m => ({ default: m.DailyWorkSummaryScreen })));
 const PerformanceReviewScreen = lazy(() => import('./screens/PerformanceReviewScreen').then(m => ({ default: m.PerformanceReviewScreen })));
 const SummaryArchiveScreen    = lazy(() => import('./screens/SummaryArchiveScreen').then(m => ({ default: m.SummaryArchiveScreen })));
-const TeamGateScreen          = lazy(() => import('./screens/TeamGateScreen').then(m => ({ default: m.TeamGateScreen })));
+const TeamTabScreen           = lazy(() => import('./screens/TeamTabScreen').then(m => ({ default: m.TeamTabScreen })));
+const TeamMembersScreen       = lazy(() => import('./screens/TeamMembersScreen').then(m => ({ default: m.TeamMembersScreen })));
+const TeamDepartmentsScreen   = lazy(() => import('./screens/TeamDepartmentsScreen').then(m => ({ default: m.TeamDepartmentsScreen })));
 const OnboardingScreen        = lazy(() => import('./screens/OnboardingScreen').then(m => ({ default: m.OnboardingScreen })));
 const SettingsScreen          = lazy(() => import('./screens/SettingsScreen').then(m => ({ default: m.SettingsScreen })));
 const ProfileScreen           = lazy(() => import('./screens/ProfileScreen').then(m => ({ default: m.ProfileScreen })));
@@ -68,7 +70,9 @@ import {
   type Panel,
   type Run,
 } from '../lib/panelCatalog';
-import { loadOnboarding } from '../lib/onboarding';
+import { loadOnboarding, roleIdFromDepartmentName } from '../lib/onboarding';
+import { useAuthOptional } from '../context/AuthContext';
+import { fetchTeam, fetchDepartments } from '../lib/teamData';
 import {
   loadProjects,
   saveProjects,
@@ -231,6 +235,40 @@ export const TaskPanelsApp: React.FC<TaskPanelsAppProps> = ({ authUser }) => {
   const updateProfile = useCallback((patch: Partial<UserProfile>) => {
     setUserProfile(prev => ({ ...prev, ...patch }));
   }, []);
+
+  // ---- Team context for onboarding ----
+  // When a newly-invited member lands here with team_id + department_id
+  // already wired (by accept_pending_team_invite), surface team + dept
+  // names to OnboardingScreen so the welcome copy and starter role
+  // preselection can adapt. Noop for solo users.
+  const authCtx = useAuthOptional();
+  const authProfile = authCtx?.profile ?? null;
+  const [teamContext, setTeamContext] = useState<{
+    teamName: string;
+    departmentName: string;
+    suggestedRoleId: string;
+  } | undefined>(undefined);
+  useEffect(() => {
+    if (!authProfile?.team_id || !authProfile.department_id) {
+      setTeamContext(undefined);
+      return;
+    }
+    let cancelled = false;
+    Promise.all([
+      fetchTeam(authProfile.team_id),
+      fetchDepartments(authProfile.team_id),
+    ]).then(([team, depts]) => {
+      if (cancelled) return;
+      const dept = depts.find(d => d.id === authProfile.department_id);
+      if (!team || !dept) return;
+      setTeamContext({
+        teamName: team.name,
+        departmentName: dept.name,
+        suggestedRoleId: roleIdFromDepartmentName(dept.name),
+      });
+    });
+    return () => { cancelled = true; };
+  }, [authProfile?.team_id, authProfile?.department_id]);
 
   // Hydrate profile from the authenticated Supabase user.
   // Rules:
@@ -724,7 +762,7 @@ export const TaskPanelsApp: React.FC<TaskPanelsAppProps> = ({ authUser }) => {
   // ---- Project actions ----
 
   const createProject = useCallback(
-    (input: { name: string; colorId?: string; client?: string; description?: string }): Project => {
+    (input: { name: string; colorId?: string; client?: string; description?: string; departmentId?: string | null }): Project => {
       const project = makeProject(input);
       setProjects(prev => [...prev, project]);
       return project;
@@ -875,6 +913,7 @@ export const TaskPanelsApp: React.FC<TaskPanelsAppProps> = ({ authUser }) => {
     return (
       <Suspense fallback={<ScreenFallback />}>
         <OnboardingScreen
+          teamContext={teamContext}
           onComplete={({ roleLabel, audience }) => {
             // Reload the catalog from localStorage (OnboardingScreen persisted it).
             setPanelCatalog(loadCatalog());
@@ -926,7 +965,7 @@ export const TaskPanelsApp: React.FC<TaskPanelsAppProps> = ({ authUser }) => {
     screen === 'prepare-summary' ||
     screen === 'daily-summary' ||
     screen === 'performance-review';
-  const isTeam = screen === 'team';
+  const isTeam = screen === 'team' || screen.startsWith('team-');
   // startsWith covers the root AND every sub-screen so future
   // settings-* routes don't need to be listed here one by one.
   const isSettings = screen === 'settings' || screen.startsWith('settings-');
@@ -1010,7 +1049,9 @@ export const TaskPanelsApp: React.FC<TaskPanelsAppProps> = ({ authUser }) => {
                screen === 'daily-summary'      ? <DailyWorkSummaryScreen />  :
                screen === 'performance-review' ? <PerformanceReviewScreen /> :
                screen === 'summary-archive'    ? <SummaryArchiveScreen />    :
-               isTeam                           ? <TeamGateScreen />          :
+               screen === 'team-members'        ? <TeamMembersScreen />       :
+               screen === 'team-departments'    ? <TeamDepartmentsScreen />   :
+               isTeam                           ? <TeamTabScreen />           :
                isSettings                       ? <SettingsScreen />          :
                isProfile                        ? <ProfileScreen />           :
                null}

@@ -32,6 +32,16 @@ export interface Project {
   createdAt: number;
   /** Bumped when a panel/run is assigned to this project. Drives Recent. */
   lastUsedAt: number;
+  /** When set, the project is visible to every member of that
+   *  department. null/undefined = private (only the owner sees it). */
+  departmentId?: string | null;
+  /** The auth.users.id of whoever created the project. Populated
+   *  on hydrate from the cloud; used client-side so the diff push
+   *  skips rows the current user doesn't own, and so the UI can
+   *  render shared-but-not-owned projects as read-only.
+   *  Undefined on freshly-created local projects (they're always
+   *  owned by the current user until they hit the cloud). */
+  ownerUserId?: string;
 }
 
 /** Convenience: a Project with its resolved color option. */
@@ -57,6 +67,7 @@ export function makeProject(input: {
   colorId?: string;
   client?: string;
   description?: string;
+  departmentId?: string | null;
 }): Project {
   const now = Date.now();
   return {
@@ -68,6 +79,7 @@ export function makeProject(input: {
     archived: false,
     createdAt: now,
     lastUsedAt: now,
+    departmentId: input.departmentId ?? null,
   };
 }
 
@@ -97,10 +109,12 @@ export function loadProjects(): Project[] {
         colorId: p.colorId ?? 'blue',
         client: p.client,
         description: p.description,
+        departmentId: p.departmentId ?? null,
       }),
       archived: Boolean(p.archived),
       createdAt: typeof p.createdAt === 'number' ? p.createdAt : Date.now(),
       lastUsedAt: typeof p.lastUsedAt === 'number' ? p.lastUsedAt : (p.createdAt ?? Date.now()),
+      ownerUserId: typeof p.ownerUserId === 'string' ? p.ownerUserId : undefined,
     }));
   } catch {
     return DEFAULT_PROJECTS;

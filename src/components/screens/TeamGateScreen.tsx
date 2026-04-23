@@ -1,20 +1,18 @@
 // ============================================================
-// TeamGateScreen — paywall preview for the Team plan
+// TeamGateScreen — upgrade gate shown to solo users
 // ------------------------------------------------------------
 // Linked from both Team nav buttons (desktop sidebar + mobile
-// bottom bar). The Team plan isn't shipped yet, so this screen
-// stands in for the upgrade flow: it explains what the user
-// would get, lists the headline features in a grid, and parks
-// a primary CTA where the real checkout handoff will land.
-//
-// The CTA currently flips to an inline "You're on the list"
-// confirmation — swap that for a payment-portal redirect
-// (Stripe checkout session, LemonSqueezy, etc.) when billing
-// is wired up. The rest of the screen can stay as-is.
+// bottom bar). Shown when the current user has no team_id.
+// Clicking "Upgrade to Team" opens the shared TeamCheckoutModal
+// (team name + seat count → stripe-checkout), which redirects
+// to Stripe. On return, the webhook creates the team, wires
+// the creator's profile, and TeamTabScreen will then route to
+// the admin dashboard.
 // ============================================================
 
 import React, { useState } from 'react';
 import { useNav } from '../../lib/previewNav';
+import { TeamCheckoutModal } from '../TeamCheckoutModal';
 
 // ============================================================
 // Icons — kept inline so the file is self-contained. Matches
@@ -37,12 +35,6 @@ const LockIcon = () => (
   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
     <rect x="3" y="11" width="18" height="11" rx="2" />
     <path d="M7 11V7a5 5 0 0110 0v4" />
-  </svg>
-);
-
-const CheckIcon = () => (
-  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
-    <path d="M5 13l4 4L19 7" />
   </svg>
 );
 
@@ -156,16 +148,7 @@ const TEAM_FEATURES: TeamFeature[] = [
 
 export const TeamGateScreen: React.FC = () => {
   const { navigate } = useNav();
-  // Local UI state for the waitlist-stub. When billing lands, the
-  // Upgrade button will redirect to Stripe / the payment portal
-  // instead of flipping this flag.
-  const [notified, setNotified] = useState(false);
-
-  const handleUpgradeClick = () => {
-    // TODO(billing): replace with a call to the payment portal —
-    // e.g. createCheckoutSession(planId: 'team') → window.location.
-    setNotified(true);
-  };
+  const [modalOpen, setModalOpen] = useState(false);
 
   return (
     <div className="flex-1 overflow-auto bg-slate-50">
@@ -186,9 +169,6 @@ export const TeamGateScreen: React.FC = () => {
             </p>
             <h1 className="text-lg font-bold text-slate-900 truncate">Team</h1>
           </div>
-          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 text-white text-[10px] font-bold uppercase tracking-wider shrink-0">
-            Coming soon
-          </span>
         </div>
       </header>
 
@@ -217,31 +197,20 @@ export const TeamGateScreen: React.FC = () => {
               Contributors stay in flow.
             </p>
 
-            {notified ? (
-              <div className="inline-flex items-start gap-2.5 px-4 py-3 rounded-xl bg-emerald-500/15 border border-emerald-400/30 text-emerald-100 text-sm font-semibold max-w-md">
-                <span className="text-emerald-300 shrink-0 pt-0.5">
-                  <CheckIcon />
-                </span>
-                <span className="leading-snug">
-                  You're on the list. We'll email you the moment Team is ready.
-                </span>
-              </div>
-            ) : (
-              <div>
-                <button
-                  type="button"
-                  onClick={handleUpgradeClick}
-                  className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-white text-slate-900 text-sm font-bold hover:bg-slate-100 transition-colors shadow-lg shadow-blue-900/20"
-                >
-                  <LockIcon />
-                  Upgrade to Team
-                  <ArrowRightIcon />
-                </button>
-                <p className="text-[11px] text-slate-400 mt-2.5">
-                  Launches soon — click to be the first to know.
-                </p>
-              </div>
-            )}
+            <div>
+              <button
+                type="button"
+                onClick={() => setModalOpen(true)}
+                className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-white text-slate-900 text-sm font-bold hover:bg-slate-100 transition-colors shadow-lg shadow-blue-900/20"
+              >
+                <LockIcon />
+                Upgrade to Team
+                <ArrowRightIcon />
+              </button>
+              <p className="text-[11px] text-slate-400 mt-2.5">
+                Starts at 5 seats · $9/user/mo.
+              </p>
+            </div>
           </div>
         </section>
 
@@ -300,6 +269,12 @@ export const TeamGateScreen: React.FC = () => {
           </div>
         </section>
       </main>
+
+      <TeamCheckoutModal
+        open={modalOpen}
+        interval="month"
+        onClose={() => setModalOpen(false)}
+      />
     </div>
   );
 };

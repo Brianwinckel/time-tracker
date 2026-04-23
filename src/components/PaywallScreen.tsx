@@ -5,15 +5,19 @@
 // Calls the stripe-checkout edge function and redirects to the
 // hosted checkout URL.
 //
-// Team is shown as "Coming Soon" (from PLANS.team.comingSoon),
-// clickable only enough to say so — no checkout path yet.
+// Team checkout goes through a two-step modal: name the team and
+// choose seat count (min 5), then submit to stripe-checkout with
+// mode='team'. The webhook creates the team + profile wiring +
+// billing_customers row on checkout.session.completed — so
+// abandoning the hosted checkout leaves zero app-side state.
 // ============================================================
 
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { TaskPanelsLogo } from './TaskPanelsLogo';
-import { PLANS, formatPrice, periodLabel, type SurfacedPlan } from '../lib/billing';
+import { TeamCheckoutModal } from './TeamCheckoutModal';
+import { PLANS, TEAM_MIN_SEATS, formatPrice, periodLabel, type SurfacedPlan } from '../lib/billing';
 import type { BillingInterval } from '../types/billing';
 
 const CheckIcon = () => (
@@ -27,14 +31,15 @@ export const PaywallScreen: React.FC = () => {
   const [interval, setInterval] = useState<BillingInterval>('month');
   const [loading, setLoading] = useState<SurfacedPlan | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [teamModalOpen, setTeamModalOpen] = useState(false);
 
-  const handleSubscribe = async (plan: SurfacedPlan) => {
-    if (PLANS[plan].comingSoon) return;
+  const handleSubscribeIndividual = async () => {
+    if (PLANS.individual.comingSoon) return;
     setError(null);
-    setLoading(plan);
+    setLoading('individual');
     try {
       const { data, error: fnError } = await supabase.functions.invoke('stripe-checkout', {
-        body: { plan, interval, appUrl: window.location.origin },
+        body: { plan: 'individual', interval, appUrl: window.location.origin },
       });
       if (fnError) throw fnError;
       if (!data?.url) throw new Error('No checkout URL returned');
@@ -147,7 +152,7 @@ export const PaywallScreen: React.FC = () => {
 
             <button
               type="button"
-              onClick={() => handleSubscribe('individual')}
+              onClick={handleSubscribeIndividual}
               disabled={loading !== null}
               className="mt-8 flex h-12 w-full items-center justify-center rounded-xl bg-slate-900 text-sm font-semibold text-white transition-colors hover:bg-slate-800 disabled:cursor-wait disabled:opacity-60"
             >
@@ -155,13 +160,8 @@ export const PaywallScreen: React.FC = () => {
             </button>
           </div>
 
-          {/* Team — coming soon */}
-          <div className="relative rounded-2xl border border-slate-200 bg-white p-7 shadow-sm opacity-75">
-            <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-              <span className="rounded-full bg-blue-600 px-3 py-1 text-xs font-medium text-white">
-                Coming Soon
-              </span>
-            </div>
+          {/* Team */}
+          <div className="relative rounded-2xl border border-slate-200 bg-white p-7 shadow-sm">
             <h3 className="text-lg font-semibold text-slate-900">{team.name}</h3>
             <div className="mt-3 flex items-baseline gap-1">
               <span className="text-4xl font-bold tracking-tight text-slate-900">
@@ -169,6 +169,7 @@ export const PaywallScreen: React.FC = () => {
               </span>
               <span className="text-sm text-slate-500">{periodLabel(team, interval)}</span>
             </div>
+            <p className="mt-1 text-xs text-slate-500">Minimum {TEAM_MIN_SEATS} seats</p>
             <p className="mt-2 text-sm text-slate-500">{team.tagline}</p>
 
             <ul className="mt-6 space-y-3">
@@ -182,10 +183,11 @@ export const PaywallScreen: React.FC = () => {
 
             <button
               type="button"
-              disabled
-              className="mt-8 flex h-12 w-full cursor-not-allowed items-center justify-center rounded-xl bg-slate-100 text-sm font-medium text-slate-400"
+              onClick={() => { setError(null); setTeamModalOpen(true); }}
+              disabled={loading !== null}
+              className="mt-8 flex h-12 w-full items-center justify-center rounded-xl bg-slate-900 text-sm font-semibold text-white transition-colors hover:bg-slate-800 disabled:cursor-wait disabled:opacity-60"
             >
-              Coming Soon
+              Subscribe to {team.name}
             </button>
           </div>
         </div>
@@ -198,6 +200,12 @@ export const PaywallScreen: React.FC = () => {
           Secure checkout by Stripe. Cancel anytime from your account settings.
         </p>
       </div>
+
+      <TeamCheckoutModal
+        open={teamModalOpen}
+        interval={interval}
+        onClose={() => setTeamModalOpen(false)}
+      />
     </div>
   );
 };

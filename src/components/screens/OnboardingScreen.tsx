@@ -35,6 +35,16 @@ interface OnboardingScreenProps {
     roleLabel: string;
     audienceLabel: string;
   }) => void;
+  /** Optional. When present, the flow adapts for a user who just joined
+   *  a team via invite: welcome step names the team + department, and
+   *  the role is pre-selected from the department name (overridable). */
+  teamContext?: {
+    teamName: string;
+    departmentName: string;
+    /** Best-guess role id derived from the department name. Falls back
+     *  to 'general' if no heuristic matches. */
+    suggestedRoleId: string;
+  };
 }
 
 // ---- Shared Components ----
@@ -91,10 +101,19 @@ const RoleIcon: React.FC<{ icon: string; className?: string }> = ({ icon, classN
 
 // ---- Main Component ----
 
-export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onComplete }) => {
+export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onComplete, teamContext }) => {
   const [step, setStep] = useState<Step>(1);
-  const [selectedRole, setSelectedRole] = useState<string | null>(null);
-  const [selectedPanels, setSelectedPanels] = useState<StarterPanel[]>([]);
+  const [selectedRole, setSelectedRole] = useState<string | null>(
+    teamContext?.suggestedRoleId ?? null,
+  );
+  const [selectedPanels, setSelectedPanels] = useState<StarterPanel[]>(() => {
+    // Seed panels from the suggested role so team-joiners see a
+    // pre-filled pack on the Panels step (still editable).
+    if (teamContext?.suggestedRoleId) {
+      return getStarterPanels(teamContext.suggestedRoleId);
+    }
+    return [];
+  });
   const [audience, setAudience] = useState<SummaryAudience>('manager');
   const [customName, setCustomName] = useState('');
   const [showCustomInput, setShowCustomInput] = useState(false);
@@ -167,12 +186,25 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onComplete }
         <Logo size={56} />
       </div>
       <h1 className="text-2xl md:text-3xl font-bold text-slate-900 mb-3">
-        Welcome to TaskPanels
+        {teamContext
+          ? `Welcome to ${teamContext.teamName}`
+          : 'Welcome to TaskPanels'}
       </h1>
-      <p className="text-sm md:text-base text-slate-500 max-w-sm mb-10 leading-relaxed">
-        Track your work, generate summaries, and own your day.
-        Let's get you set up in under a minute.
-      </p>
+      {teamContext ? (
+        <>
+          <p className="text-sm md:text-base text-slate-600 max-w-sm mb-2 leading-relaxed">
+            You've joined the <span className="font-semibold text-slate-900">{teamContext.departmentName}</span> department.
+          </p>
+          <p className="text-sm text-slate-500 max-w-sm mb-10 leading-relaxed">
+            We've lined up starter panels based on your department — tweak them in the next step, or keep the defaults and start tracking.
+          </p>
+        </>
+      ) : (
+        <p className="text-sm md:text-base text-slate-500 max-w-sm mb-10 leading-relaxed">
+          Track your work, generate summaries, and own your day.
+          Let's get you set up in under a minute.
+        </p>
+      )}
       <button
         onClick={next}
         className="h-12 px-8 bg-slate-900 text-white text-sm font-semibold rounded-xl hover:bg-slate-800 transition-colors"
@@ -448,10 +480,13 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onComplete }
           </svg>
         </div>
         <h2 className="text-2xl md:text-3xl font-bold text-slate-900 mb-3">
-          You're all set
+          {teamContext ? `You're in, welcome to ${teamContext.teamName}` : "You're all set"}
         </h2>
         <p className="text-sm md:text-base text-slate-500 max-w-sm mb-2 leading-relaxed">
           {selectedPanels.length} panels ready for {roleName}.
+          {teamContext && (
+            <> Shared projects from <span className="font-semibold text-slate-700">{teamContext.departmentName}</span> are already available.</>
+          )}
         </p>
         <p className="text-xs text-slate-400 mb-10">
           Tap <span className="font-semibold text-slate-600">Start Panel</span> on the home screen to begin tracking.

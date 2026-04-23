@@ -24,6 +24,8 @@ export type PreviewScreen =
   | 'performance-review'
   | 'summary-archive'
   | 'team'
+  | 'team-members'
+  | 'team-departments'
   | 'profile'
   | 'settings'
   | 'settings-projects'
@@ -130,7 +132,7 @@ type NavContextValue = {
   // ---- Projects (first-class workflow + reporting object) ----
   projects: Project[];
   /** Create a new project and return it. Bumps lastUsedAt to now. */
-  createProject: (input: { name: string; colorId?: string; client?: string; description?: string }) => Project;
+  createProject: (input: { name: string; colorId?: string; client?: string; description?: string; departmentId?: string | null }) => Project;
   /** Patch an existing project's editable fields. */
   updateProject: (id: string, patch: Partial<Omit<Project, 'id' | 'createdAt'>>) => void;
   /** Soft-archive a project. Existing panels keep their projectId. */

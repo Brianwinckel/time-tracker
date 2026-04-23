@@ -42,6 +42,19 @@ export function getCloudStateUser(): string | null {
   return currentUserId;
 }
 
+// Wipe every localStorage key owned by the app. Used on sign-out and
+// whenever the signed-in user changes, so one account never hydrates
+// with data left behind by another on the same browser.
+export function clearLocalUserState(): void {
+  if (typeof window === 'undefined' || !window.localStorage) return;
+  const keys = Object.keys(localStorage);
+  for (const k of keys) {
+    if (k.startsWith('taskpanels.') || k.startsWith('tp.')) {
+      localStorage.removeItem(k);
+    }
+  }
+}
+
 // ---- Debounced pusher (one timer per key so writes don't starve each other) ----
 
 const pushTimers: Partial<Record<StateKey, number>> = {};

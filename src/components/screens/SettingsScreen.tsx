@@ -21,6 +21,7 @@ import { useNav } from '../../lib/previewNav';
 import type { PreviewScreen } from '../../lib/previewNav';
 import { PANEL_COLOR_OPTIONS, colorOptionFor } from '../../lib/panelCatalog';
 import { activeProjects, type Project } from '../../lib/projects';
+import { useAuthOptional } from '../../context/AuthContext';
 import type { AppPreferences } from '../../lib/preferences';
 
 // ============================================================
@@ -721,6 +722,7 @@ interface ProjectFormState {
   colorId: string;
   client: string;
   description: string;
+  shareWithDepartment: boolean;
 }
 
 const blankForm = (): ProjectFormState => ({
@@ -729,6 +731,7 @@ const blankForm = (): ProjectFormState => ({
   colorId: 'blue',
   client: '',
   description: '',
+  shareWithDepartment: false,
 });
 
 const editForm = (p: Project): ProjectFormState => ({
@@ -737,6 +740,7 @@ const editForm = (p: Project): ProjectFormState => ({
   colorId: p.colorId,
   client: p.client ?? '',
   description: p.description ?? '',
+  shareWithDepartment: !!p.departmentId,
 });
 
 const SettingsProjects: React.FC = () => {
@@ -748,9 +752,14 @@ const SettingsProjects: React.FC = () => {
     unarchiveProject,
     deleteProject,
   } = useNav();
+  const { profile } = useAuthOptional() ?? { profile: null };
 
   const [form, setForm] = useState<ProjectFormState | null>(null);
   const [showArchived, setShowArchived] = useState(false);
+
+  const myUserId = profile?.id ?? null;
+  const myDepartmentId = profile?.department_id ?? null;
+  const canShareWithDepartment = !!profile?.team_id && !!myDepartmentId;
 
   const visibleProjects = useMemo(() => {
     return projects
@@ -768,12 +777,15 @@ const SettingsProjects: React.FC = () => {
 
   const submitForm = () => {
     if (!form || !isFormValid) return;
+    const departmentId =
+      canShareWithDepartment && form.shareWithDepartment ? myDepartmentId : null;
     if (form.mode === 'new') {
       createProject({
         name: form.name.trim(),
         colorId: form.colorId,
         client: form.client.trim() || undefined,
         description: form.description.trim() || undefined,
+        departmentId,
       });
     } else {
       updateProject(form.mode, {
@@ -781,6 +793,7 @@ const SettingsProjects: React.FC = () => {
         colorId: form.colorId,
         client: form.client.trim() || undefined,
         description: form.description.trim() || undefined,
+        departmentId,
       });
     }
     setForm(null);
@@ -847,6 +860,10 @@ const SettingsProjects: React.FC = () => {
         <ul className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
           {visibleProjects.map(p => {
             const color = colorOptionFor(p.colorId);
+            // Shared-with-dept + owned-by-someone-else = read-only.
+            // When myUserId is null (solo-app preview), treat all as owned.
+            const isOwnedByMe = !p.ownerUserId || !myUserId || p.ownerUserId === myUserId;
+            const isShared = !!p.departmentId;
             return (
               <li
                 key={p.id}
@@ -857,7 +874,14 @@ const SettingsProjects: React.FC = () => {
                   aria-hidden
                 />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-slate-900 truncate">{p.name}</p>
+                  <p className="text-sm font-semibold text-slate-900 truncate flex items-center gap-2">
+                    <span className="truncate">{p.name}</span>
+                    {isShared && (
+                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 uppercase shrink-0">
+                        Shared
+                      </span>
+                    )}
+                  </p>
                   {(p.client || p.description) && (
                     <p className="text-xs text-slate-500 truncate">
                       {[p.client, p.description].filter(Boolean).join(' — ')}
@@ -865,7 +889,9 @@ const SettingsProjects: React.FC = () => {
                   )}
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
-                  {!p.archived ? (
+                  {!isOwnedByMe ? (
+                    <span className="text-[11px] text-slate-400 px-2 py-1">Read-only</span>
+                  ) : !p.archived ? (
                     <>
                       <button
                         type="button"
@@ -994,6 +1020,25 @@ const SettingsProjects: React.FC = () => {
                   ))}
                 </div>
               </div>
+
+              {canShareWithDepartment && (
+                <label className="flex items-start gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3.5 py-3 cursor-pointer hover:border-slate-300">
+                  <input
+                    type="checkbox"
+                    checked={form.shareWithDepartment}
+                    onChange={e => setForm({ ...form, shareWithDepartment: e.target.checked })}
+                    className="mt-0.5 w-4 h-4 rounded border-slate-300 text-slate-900 focus:ring-slate-400"
+                  />
+                  <span className="flex-1 min-w-0">
+                    <span className="block text-sm font-semibold text-slate-900">
+                      Share with your department
+                    </span>
+                    <span className="block text-xs text-slate-500 mt-0.5">
+                      Everyone in your department will be able to track time against this project.
+                    </span>
+                  </span>
+                </label>
+              )}
             </div>
             <footer className="px-5 py-4 border-t border-slate-100 flex items-center justify-end gap-2">
               <button

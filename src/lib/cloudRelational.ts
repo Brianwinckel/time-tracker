@@ -46,7 +46,8 @@ interface DbProjectRow {
   id: string;
   user_id: string;
   archived: boolean;
-  data: Omit<Project, 'id' | 'archived' | 'createdAt'>;
+  department_id: string | null;
+  data: Omit<Project, 'id' | 'archived' | 'createdAt' | 'departmentId' | 'ownerUserId'>;
   created_at: string;
   updated_at?: string;
 }
@@ -94,22 +95,26 @@ function runFromDb(row: DbRunRow): Run {
 }
 
 function projectToDb(p: Project, userId: string): Omit<DbProjectRow, 'updated_at'> {
-  const { id, archived, createdAt, ...rest } = p;
+  const { id, archived, createdAt, departmentId, ownerUserId: _o, ...rest } = p;
+  void _o;
   return {
     id,
     user_id: userId,
     archived,
+    department_id: departmentId ?? null,
     data: rest,
     created_at: new Date(createdAt).toISOString(),
   };
 }
 function projectFromDb(row: DbProjectRow): Project {
-  const data = row.data as Omit<Project, 'id' | 'archived' | 'createdAt'>;
+  const data = row.data as Omit<Project, 'id' | 'archived' | 'createdAt' | 'departmentId' | 'ownerUserId'>;
   return {
     ...data,
     id: row.id,
     archived: row.archived,
     createdAt: new Date(row.created_at).getTime(),
+    departmentId: row.department_id ?? null,
+    ownerUserId: row.user_id,
   };
 }
 
@@ -270,8 +275,17 @@ export function bindProjectsBaseline(projects: Project[]): void {
 export function diffPushProjects(next: Project[]): void {
   const userId = getCloudStateUser();
   if (!userId) return;
-  const prevMap = new Map(lastProjects.map(p => [p.id, p]));
-  const nextMap = new Map(next.map(p => [p.id, p]));
+
+  // Exclude dept-shared-but-not-owned projects from the diff. They
+  // appear in the local list for display but we can't write to them
+  // (RLS blocks non-owner UPDATE/DELETE), and attempting to push them
+  // would produce spurious failures in the cloudQueue.
+  const isOwned = (p: Project) => !p.ownerUserId || p.ownerUserId === userId;
+  const ownedPrev = lastProjects.filter(isOwned);
+  const ownedNext = next.filter(isOwned);
+
+  const prevMap = new Map(ownedPrev.map(p => [p.id, p]));
+  const nextMap = new Map(ownedNext.map(p => [p.id, p]));
   const pending = getPending('user_projects');
 
   for (const [id, project] of nextMap) {
@@ -369,10 +383,15 @@ export async function hydrateRelationalFromCloud(
   localProjects: Project[],
   localSavedSummaries: SavedSummaryMap,
 ): Promise<RelationalSnapshot> {
-  const [panelsRes, runsRes, projectsRes, summariesRes] = await Promise.all([
+  const [panelsRes, runsRes, ownedProjectsRes, sharedProjectsRes, summariesRes] = await Promise.all([
     supabase.from('user_panels').select('*').eq('user_id', userId),
     supabase.from('user_runs').select('*').eq('user_id', userId),
     supabase.from('user_projects').select('*').eq('user_id', userId),
+    // Dept-shared rows owned by someone else (RLS lets these through
+    // when the row's department_id matches our get_my_department_id()).
+    // Kept as a separate query so "owned" drives the first-upload path
+    // below without shared rows masking an empty-cloud state.
+    supabase.from('user_projects').select('*').neq('user_id', userId),
     supabase.from('user_saved_summaries').select('*').eq('user_id', userId),
   ]);
 
@@ -410,19 +429,28 @@ export async function hydrateRelationalFromCloud(
   }
 
   // --- Projects ---
+  // Owned projects drive the initial-upload decision. Shared-with-
+  // dept projects are merged in afterwards for display, but never
+  // block a first-time upload of local-only projects.
   let projects: Project[];
-  if (projectsRes.error) {
-    console.error('[cloudRelational] projects fetch:', projectsRes.error.message);
+  if (ownedProjectsRes.error) {
+    console.error('[cloudRelational] owned projects fetch:', ownedProjectsRes.error.message);
     projects = localProjects;
-  } else if ((projectsRes.data ?? []).length > 0) {
-    projects = (projectsRes.data as DbProjectRow[]).map(projectFromDb);
+  } else if ((ownedProjectsRes.data ?? []).length > 0) {
+    projects = (ownedProjectsRes.data as DbProjectRow[]).map(projectFromDb);
   } else if (localProjects.length > 0) {
     const rows = localProjects.map(p => projectToDb(p, userId));
     const { error } = await supabase.from('user_projects').upsert(rows, { onConflict: 'id' });
     if (error) console.error('[cloudRelational] initial projects upload:', error.message);
-    projects = localProjects;
+    // Stamp ownerUserId so later diff pushes know these are ours.
+    projects = localProjects.map(p => ({ ...p, ownerUserId: userId }));
   } else {
     projects = [];
+  }
+  // Append shared projects (read-only from this user's perspective).
+  if (!sharedProjectsRes.error && sharedProjectsRes.data) {
+    const shared = (sharedProjectsRes.data as DbProjectRow[]).map(projectFromDb);
+    projects = [...projects, ...shared];
   }
 
   // --- Saved summaries ---

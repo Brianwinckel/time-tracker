@@ -1,11 +1,18 @@
 // ============================================================
-// stripe-checkout (deployed v8 — mirrors Supabase Edge Function).
+// stripe-checkout (deployed v9 — adds team bootstrap via webhook).
 //
 // Creates a Stripe Checkout Session for the authenticated caller.
 // On first-ever checkout for a billing_customer we append &new=1 to
 // the success URL so the frontend can route new customers to
 // onboarding. Existing customers (re-subscribing after cancel,
 // upgrading, etc.) land on the regular app home.
+//
+// v9: mode='team' + no existing team_id now creates a Stripe
+// Checkout Session using customer_email (no pre-created Stripe
+// customer, no billing_customers row). Team name + seat count are
+// passed via session metadata; the webhook handler creates the
+// team atomically on checkout.session.completed. Abandoned
+// checkouts leave zero app-side state.
 //
 // Deploy with:  supabase functions deploy stripe-checkout
 // ============================================================
@@ -66,6 +73,10 @@ Deno.serve(async (req: Request) => {
       rawPlan === 'team' ? 'team' : null;
     const interval: 'month' | 'year' = body.interval === 'year' ? 'year' : 'month';
     const mode: 'user' | 'team' = body.mode === 'team' ? 'team' : 'user';
+    const teamName: string = typeof body.teamName === 'string' ? body.teamName.trim() : '';
+    const seats: number = typeof body.seats === 'number'
+      ? body.seats
+      : parseInt(String(body.seats || 0), 10) || 0;
 
     if (!plan) {
       return new Response(JSON.stringify({ error: 'Invalid plan' }), {
@@ -84,6 +95,50 @@ Deno.serve(async (req: Request) => {
     if (!profile) {
       return new Response(JSON.stringify({ error: 'Profile not found' }), {
         status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // --- New-team checkout path ---
+    // mode=team + no existing team membership = buying a brand-new team.
+    // We skip creating any app-side rows here; the webhook
+    // (checkout.session.completed) creates teams, billing_customers, and
+    // profile updates atomically once payment succeeds. That way abandoned
+    // checkouts leave zero state.
+    if (plan === 'team' && mode === 'team' && !profile.team_id) {
+      if (!teamName) {
+        return new Response(JSON.stringify({ error: 'Team name is required' }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      if (seats < 5) {
+        return new Response(JSON.stringify({ error: 'Team plan requires at least 5 seats' }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const origin = req.headers.get('origin') || body.appUrl || 'https://app.taskpanels.app';
+      const metadata = {
+        user_id: user.id,
+        plan: 'team',
+        mode: 'team',
+        team_name: teamName,
+        seats: String(seats),
+      };
+
+      const session = await stripe.checkout.sessions.create({
+        customer_email: user.email || undefined,
+        mode: 'subscription',
+        line_items: [{ price: priceId, quantity: seats }],
+        success_url: `${origin}/?checkout=success&new=1&mode=team`,
+        cancel_url: `${origin}/?checkout=canceled`,
+        allow_promotion_codes: true,
+        client_reference_id: user.id,
+        subscription_data: { metadata },
+        metadata,
+      } as Stripe.Checkout.SessionCreateParams);
+
+      return new Response(JSON.stringify({ url: session.url }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 

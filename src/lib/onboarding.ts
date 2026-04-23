@@ -155,6 +155,21 @@ export function getStarterPanels(roleId: string): StarterPanel[] {
   return STARTER_PACKS[roleId] ?? STARTER_PACKS.general;
 }
 
+/** Best-guess WorkRole id from a department name. Used by the team
+ *  onboarding flow so a newly-joined member sees a sensible pre-
+ *  selected role without having to manually pick one. Falls back
+ *  to 'general' when no heuristic matches. */
+export function roleIdFromDepartmentName(name: string): string {
+  const n = name.toLowerCase();
+  if (/\b(eng|engineer|engineering|tech|dev|developer|software|backend|frontend|devops|sre|platform|infra)\b/.test(n)) return 'engineering';
+  if (/\b(market|marketing|content|growth|demand|social|seo|brand\s*marketing)\b/.test(n)) return 'marketing';
+  if (/\b(design|creative|ui|ux|brand(?!\s*marketing)|product\s*design)\b/.test(n)) return 'design';
+  if (/\b(product|strategy|pm|program)\b/.test(n)) return 'product';
+  if (/\b(ops|operations|admin|administrative|finance|accounting|hr|people|legal|it)\b/.test(n)) return 'operations';
+  if (/\b(sales|client|clients|consulting|consultant|account|customer\s*success|cs\b)\b/.test(n)) return 'client';
+  return 'general';
+}
+
 /** Convert a set of StarterPanels into full MockPanel catalog entries. */
 export function buildCatalogFromStarters(starters: StarterPanel[]): MockPanel[] {
   return starters.map(s => makePanel({ name: s.name, colorId: s.colorId }));

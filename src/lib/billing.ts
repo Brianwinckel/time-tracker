@@ -9,6 +9,10 @@ import type { BillingInterval } from '../types/billing';
  *  AI-powered tier and intentionally not in PLANS yet. */
 export type SurfacedPlan = 'individual' | 'team';
 
+/** Minimum seats required when purchasing the Team plan. Enforced on
+ *  both the client (PaywallScreen) and the stripe-checkout edge function. */
+export const TEAM_MIN_SEATS = 5;
+
 export interface PlanDef {
   id: SurfacedPlan;
   name: string;
@@ -41,7 +45,7 @@ export const PLANS: Record<SurfacedPlan, PlanDef> = {
   team: {
     id: 'team',
     name: 'Team',
-    tagline: 'For teams that want better updates without more meetings.',
+    tagline: `For teams that want better updates without more meetings. Starts at ${TEAM_MIN_SEATS} seats.`,
     monthlyPrice: 9,
     yearlyPrice: 86,
     yearlyMonthlyEquivalent: 7,
@@ -52,7 +56,6 @@ export const PLANS: Record<SurfacedPlan, PlanDef> = {
       'Shared rollups',
       'Admin controls',
     ],
-    comingSoon: true,
   },
 };
 
