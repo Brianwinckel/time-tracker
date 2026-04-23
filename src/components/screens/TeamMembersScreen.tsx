@@ -98,7 +98,18 @@ export const TeamMembersScreen: React.FC = () => {
           appUrl: window.location.origin,
         },
       });
-      if (error) throw error;
+      if (error) {
+        // FunctionsHttpError.context is the Response — parse its JSON body
+        // so we surface the actual error from the edge function, not the
+        // generic "non-2xx" wrapper.
+        let serverMsg: string | null = null;
+        try {
+          const res = (error as { context?: Response }).context;
+          const body = await res?.clone().json();
+          if (body?.error) serverMsg = body.error;
+        } catch { /* fall through to generic message */ }
+        throw new Error(serverMsg || (error as Error).message);
+      }
       if (data?.error) throw new Error(data.error);
       setInviteOk(`Invite sent to ${email.trim()}.`);
       setEmail('');
