@@ -914,15 +914,23 @@ export const TaskPanelsApp: React.FC<TaskPanelsAppProps> = ({ authUser }) => {
       <Suspense fallback={<ScreenFallback />}>
         <OnboardingScreen
           teamContext={teamContext}
-          onComplete={({ roleLabel, audience }) => {
+          initialName={authProfile?.name ?? ''}
+          onComplete={({ roleLabel, audience, name }) => {
             // Reload the catalog from localStorage (OnboardingScreen persisted it).
             setPanelCatalog(loadCatalog());
+            // Persist the name collected during onboarding to the Supabase
+            // profile (for OTP/invite users who arrive without one). Also
+            // mirror it into the local UserProfile. Skip when empty.
+            if (name && !authProfile?.name?.trim()) {
+              void authCtx?.updateProfile({ name });
+            }
             // Seed the user's profile with the role they picked during
             // onboarding so ProfileScreen isn't mysteriously empty. Only
             // write if the user hasn't already filled it (re-onboarding
             // later shouldn't clobber a manually-tuned role).
             updateProfile({
               role: userProfile.role.trim() || roleLabel,
+              name: userProfile.name.trim() || name || userProfile.name,
             });
             // Map the onboarding audience pick to the preferences enum.
             // Onboarding uses 'internal' while preferences uses 'team'.

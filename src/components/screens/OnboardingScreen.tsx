@@ -34,6 +34,7 @@ interface OnboardingScreenProps {
     audience: SummaryAudience;
     roleLabel: string;
     audienceLabel: string;
+    name: string;
   }) => void;
   /** Optional. When present, the flow adapts for a user who just joined
    *  a team via invite: welcome step names the team + department, and
@@ -45,6 +46,11 @@ interface OnboardingScreenProps {
      *  to 'general' if no heuristic matches. */
     suggestedRoleId: string;
   };
+  /** Prefill for the name field. When non-empty (e.g. from Google SSO or
+   *  Stripe customer_details), we skip the name prompt on the welcome
+   *  step. When empty (typical for OTP/invite users), the welcome step
+   *  shows a required name input before "Get Started". */
+  initialName?: string;
 }
 
 // ---- Shared Components ----
@@ -101,7 +107,7 @@ const RoleIcon: React.FC<{ icon: string; className?: string }> = ({ icon, classN
 
 // ---- Main Component ----
 
-export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onComplete, teamContext }) => {
+export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onComplete, teamContext, initialName = '' }) => {
   const [step, setStep] = useState<Step>(1);
   const [selectedRole, setSelectedRole] = useState<string | null>(
     teamContext?.suggestedRoleId ?? null,
@@ -115,6 +121,8 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onComplete, 
     return [];
   });
   const [audience, setAudience] = useState<SummaryAudience>('manager');
+  const [name, setName] = useState(initialName.trim());
+  const needsName = !initialName.trim();
   const [customName, setCustomName] = useState('');
   const [showCustomInput, setShowCustomInput] = useState(false);
 
@@ -175,8 +183,8 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onComplete, 
     const audienceLabel =
       AUDIENCE_OPTIONS.find(o => o.id === audience)?.label ?? 'Manager';
 
-    onComplete({ roleId, audience, roleLabel, audienceLabel });
-  }, [selectedRole, selectedPanels, audience, onComplete]);
+    onComplete({ roleId, audience, roleLabel, audienceLabel, name: name.trim() });
+  }, [selectedRole, selectedPanels, audience, onComplete, name]);
 
   // ---- Step Renderers ----
 
@@ -205,9 +213,26 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onComplete, 
           Let's get you set up in under a minute.
         </p>
       )}
+      {needsName && (
+        <div className="w-full max-w-xs mb-6 text-left">
+          <label htmlFor="onboarding-name" className="block text-xs font-medium text-slate-600 mb-1.5">
+            What should we call you?
+          </label>
+          <input
+            id="onboarding-name"
+            type="text"
+            autoComplete="name"
+            value={name}
+            onChange={e => setName(e.target.value)}
+            placeholder="Your full name"
+            className="w-full h-11 px-3 rounded-lg border border-slate-200 bg-white text-sm text-slate-900 outline-none focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10"
+          />
+        </div>
+      )}
       <button
         onClick={next}
-        className="h-12 px-8 bg-slate-900 text-white text-sm font-semibold rounded-xl hover:bg-slate-800 transition-colors"
+        disabled={needsName && !name.trim()}
+        className="h-12 px-8 bg-slate-900 text-white text-sm font-semibold rounded-xl hover:bg-slate-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
       >
         Get Started
       </button>
