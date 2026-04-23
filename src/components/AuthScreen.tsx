@@ -126,7 +126,17 @@ export const AuthScreen: React.FC = () => {
             onChange={e => handleOtpInput(e.target.value)}
             disabled={submitting}
             aria-label="Verification code"
-            className="absolute inset-0 w-full h-full opacity-0 cursor-text disabled:cursor-not-allowed"
+            // Transparent-but-visible: iOS treats this as a real input
+            // (keyboard stays up between keystrokes). opacity:0 would let
+            // Safari deprioritize it and dismiss the keyboard.
+            style={{
+              color: 'transparent',
+              caretColor: 'transparent',
+              background: 'transparent',
+              WebkitTextFillColor: 'transparent',
+              textShadow: 'none',
+            }}
+            className="absolute inset-0 w-full h-full border-0 outline-none cursor-text disabled:cursor-not-allowed focus:outline-none focus:ring-0"
           />
           {Array.from({ length: 6 }).map((_, i) => {
             const digit = otp[i] || '';
