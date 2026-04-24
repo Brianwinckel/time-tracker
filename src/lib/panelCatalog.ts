@@ -434,7 +434,16 @@ export interface Run {
   /** Either a Panel instance id, or one of BREAK/LUNCH/IDLE_PANEL_ID. */
   panelId: string;
   startedAt: number;
-  endedAt: number;
+  /** `null` = currently running (open run). Set when the run ends. */
+  endedAt: number | null;
+}
+
+export function isOpenRun(run: Run): boolean {
+  return run.endedAt === null;
+}
+
+export function runDuration(run: Run, now: number = Date.now()): number {
+  return (run.endedAt ?? now) - run.startedAt;
 }
 
 export function runKind(run: Run): RunKind {
@@ -450,8 +459,12 @@ function newRunId(): string {
     : `run_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
-export function makeRun(panelId: string, startedAt: number, endedAt: number): Run {
+export function makeRun(panelId: string, startedAt: number, endedAt: number | null): Run {
   return { id: newRunId(), panelId, startedAt, endedAt };
+}
+
+export function makeOpenRun(panelId: string, startedAt: number = Date.now()): Run {
+  return { id: newRunId(), panelId, startedAt, endedAt: null };
 }
 
 const RUNS_STORAGE_KEY = 'taskpanels.runs.v1';
@@ -469,7 +482,7 @@ export function loadRuns(): Run[] {
         typeof r.id === 'string' &&
         typeof r.panelId === 'string' &&
         typeof r.startedAt === 'number' &&
-        typeof r.endedAt === 'number',
+        (typeof r.endedAt === 'number' || r.endedAt === null),
     );
   } catch {
     return [];

@@ -96,12 +96,15 @@ export async function fetchLiveActivity(teamId: string): Promise<LiveRun[]> {
   const memberIds = members.map(m => m.id);
   const nameById = new Map(members.map(m => [m.id, m.name || m.email]));
 
-  // Step 2: live runs for those users
+  // Step 2: live runs for those users. An open run (ended_at IS NULL)
+  // IS the active timer — we filter out break/lunch sentinels since the
+  // feed is about visible work, and those are treated as private.
   const { data, error } = await supabase
     .from('user_runs')
     .select('id, user_id, panel_id, started_at')
     .in('user_id', memberIds)
     .is('ended_at', null)
+    .not('panel_id', 'in', '(__break__,__lunch__,__idle__)')
     .order('started_at', { ascending: true });
   if (error) {
     console.error('[teamData] fetchLiveActivity failed:', error.message);

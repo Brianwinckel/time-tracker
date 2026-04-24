@@ -14,6 +14,7 @@ import {
   type SummaryStyle as SummaryStyleKind,
   type SourceId,
   type ExternalDigest,
+  type RunSegment,
 } from '../../lib/summaryModel';
 
 // Map Home's tailwind color name to a hex for downstream SVG fills.
@@ -477,8 +478,10 @@ export const PrepareSummaryScreen: React.FC = () => {
     const dayStart = new Date(y, mo - 1, d, 0, 0, 0, 0).getTime();
     const dayEnd = new Date(y, mo - 1, d, 23, 59, 59, 999).getTime();
     const panelIds = new Set<string>();
+    const nowMs = Date.now();
     for (const r of runs) {
-      if (r.endedAt > dayStart && r.startedAt < dayEnd) {
+      const end = r.endedAt ?? nowMs;
+      if (end > dayStart && r.startedAt < dayEnd) {
         panelIds.add(r.panelId);
       }
     }
@@ -496,8 +499,10 @@ export const PrepareSummaryScreen: React.FC = () => {
     const dayStart = new Date(t.getFullYear(), t.getMonth(), t.getDate()).getTime();
     const dayEnd = new Date(t.getFullYear(), t.getMonth(), t.getDate(), 23, 59, 59, 999).getTime();
     const panelIds = new Set<string>();
+    const nowMs = Date.now();
     for (const r of runs) {
-      if (r.endedAt > dayStart && r.startedAt < dayEnd) {
+      const end = r.endedAt ?? nowMs;
+      if (end > dayStart && r.startedAt < dayEnd) {
         panelIds.add(r.panelId);
       }
     }
@@ -583,10 +588,12 @@ export const PrepareSummaryScreen: React.FC = () => {
     const dayStart = new Date(y, mo - 1, d, 0, 0, 0, 0).getTime();
     const dayEnd = new Date(y, mo - 1, d, 23, 59, 59, 999).getTime();
     const acc: Record<string, number> = {};
+    const nowMs = Date.now();
     for (const r of runs) {
-      if (r.endedAt <= dayStart || r.startedAt >= dayEnd) continue;
+      const rEnd = r.endedAt ?? nowMs;
+      if (rEnd <= dayStart || r.startedAt >= dayEnd) continue;
       const s = Math.max(r.startedAt, dayStart);
-      const e = Math.min(r.endedAt, dayEnd);
+      const e = Math.min(rEnd, dayEnd);
       acc[r.panelId] = (acc[r.panelId] ?? 0) + (e - s);
     }
     return acc;
@@ -834,17 +841,17 @@ export const PrepareSummaryScreen: React.FC = () => {
       .map(s => s.id as SourceId)
       .filter(id => id === 'taskpanels' || id === 'claude' || id === 'browser');
 
-    // Snapshot runs for the timeline. If a panel is still actively timing,
-    // append a synthetic run from its startedAt → now so the in-flight
-    // session shows up on the report instead of vanishing into accum-only.
-    const runsSnapshot = activeTimer
-      ? [...runs, {
-          id: `run_active_${activeTimer.startedAt}`,
-          panelId: activeTimer.panelId,
-          startedAt: activeTimer.startedAt,
-          endedAt: now.getTime(),
-        }]
-      : runs;
+    // Snapshot runs for the timeline. Close any still-open run at
+    // `now` so the in-flight session shows up on the report instead
+    // of vanishing into accum-only. The underlying runs[] state is
+    // untouched — this is a frozen view for summary generation, and
+    // the summary model requires all runs to have a concrete endedAt.
+    const runsSnapshot: RunSegment[] = runs.map(r => ({
+      id: r.id,
+      panelId: r.panelId,
+      startedAt: r.startedAt,
+      endedAt: r.endedAt ?? now.getTime(),
+    }));
 
     const input = buildSummaryInput({
       reportKind: (isDaily ? 'daily' : 'performance') as ReportKind,

@@ -64,6 +64,7 @@ import {
   makeMeetingPanel,
   makeCommutePanel,
   makeRun,
+  makeOpenRun,
   BREAK_PANEL_ID,
   LUNCH_PANEL_ID,
   type MockPanel,
@@ -310,39 +311,66 @@ export const TaskPanelsApp: React.FC<TaskPanelsAppProps> = ({ authUser }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authEmail, authName, authAvatar, authProvider]);
 
-  // ---- Runs (append-only tracked segments) ----
+  // ---- Runs (unified: closed + open) ----
+  // A run with endedAt=null is the "active timer" — the single source of
+  // truth for what's currently running. Starting a new panel atomically
+  // closes the open run and appends a new one. All runs sync to Supabase
+  // via diffPushRuns; the open-run endedAt transition (null → number) is
+  // an upsert, so team admins see "Tracking now" update in near-real-time.
   const [runs, setRuns] = useState<Run[]>(() => loadRuns());
   useEffect(() => {
     saveRuns(runs);
   }, [runs]);
+  const runsRef = useRef<Run[]>(runs);
+  useEffect(() => { runsRef.current = runs; }, [runs]);
+
   const appendRun = useCallback((panelId: string, startedAt: number, endedAt: number) => {
     if (endedAt <= startedAt) return;
     setRuns(prev => [...prev, makeRun(panelId, startedAt, endedAt)]);
   }, []);
 
-  // ---- Active timer ----
-  // panelId here is always a Panel *instance* id (or a sentinel for breaks).
-  const [activeTimer, setActiveTimer] = useState<ActiveTimer>(null);
-  const activeTimerRef = useRef<ActiveTimer>(null);
-  useEffect(() => {
-    activeTimerRef.current = activeTimer;
-  }, [activeTimer]);
+  // Derive the active timer (if any) from the one open run.
+  const activeTimer = useMemo<ActiveTimer>(() => {
+    const open = runs.find(r => r.endedAt === null);
+    if (!open) return null;
+    // activeTimer historically excluded break/lunch sentinels — the break
+    // countdown is its own concept. We preserve that here: panel/meeting/
+    // commute runs surface as activeTimer; break/lunch open runs do not.
+    if (open.panelId === BREAK_PANEL_ID || open.panelId === LUNCH_PANEL_ID) return null;
+    return { panelId: open.panelId, startedAt: open.startedAt };
+  }, [runs]);
 
-  // Derived accumulator: walks runs[] summing ms per panel instance, then
-  // adds the in-flight active run. Home and Fullscreen read this.
+  // Helpers: close the currently-open run and / or open a new one. Always
+  // operate via setRuns(prev => ...) so reads and writes are atomic.
+  const closeOpenRun = useCallback((now: number) => {
+    setRuns(prev =>
+      prev.map(r => (r.endedAt === null ? { ...r, endedAt: now } : r)),
+    );
+  }, []);
+  const switchOpenRun = useCallback((panelId: string, now: number) => {
+    setRuns(prev => {
+      const open = prev.find(r => r.endedAt === null);
+      if (open && open.panelId === panelId) return prev; // no-op
+      const closed = prev.map(r =>
+        r.endedAt === null ? { ...r, endedAt: now } : r,
+      );
+      return [...closed, makeOpenRun(panelId, now)];
+    });
+  }, []);
+
+  // Derived accumulator: sum ms per panel across all runs, using `now`
+  // as the end for any still-open run.
   const panelAccum = useMemo<Record<string, number>>(() => {
+    const now = Date.now();
     const acc: Record<string, number> = {};
     for (const r of runs) {
-      acc[r.panelId] = (acc[r.panelId] ?? 0) + (r.endedAt - r.startedAt);
-    }
-    if (activeTimer) {
-      acc[activeTimer.panelId] =
-        (acc[activeTimer.panelId] ?? 0) + (Date.now() - activeTimer.startedAt);
+      const end = r.endedAt ?? now;
+      acc[r.panelId] = (acc[r.panelId] ?? 0) + (end - r.startedAt);
     }
     return acc;
-    // activeTimer.startedAt changes only on start; the live tick is handled
-    // by consuming screens (they setInterval and re-render).
-  }, [runs, activeTimer]);
+    // For the open run, startedAt changes only on switch; the live tick
+    // is handled by consuming screens (they setInterval and re-render).
+  }, [runs]);
 
   // ---- Break / Lunch countdown ----
   const [activeBreak, setActiveBreak] = useState<ActiveBreak>(null);
@@ -355,16 +383,18 @@ export const TaskPanelsApp: React.FC<TaskPanelsAppProps> = ({ authUser }) => {
   // but HomeScreen still wants a fast "total break accumulated" rollup.
   const breakAccum = useMemo<Record<BreakKind, number>>(() => {
     const dayStart = startOfTodayMs();
+    const now = Date.now();
     const acc: Record<BreakKind, number> = { break: 0, lunch: 0 };
     for (const r of runs) {
-      if (r.endedAt <= dayStart) continue;
-      if (r.panelId === BREAK_PANEL_ID) acc.break += r.endedAt - r.startedAt;
-      else if (r.panelId === LUNCH_PANEL_ID) acc.lunch += r.endedAt - r.startedAt;
+      const end = r.endedAt ?? now;
+      if (end <= dayStart) continue;
+      if (r.panelId === BREAK_PANEL_ID) acc.break += end - r.startedAt;
+      else if (r.panelId === LUNCH_PANEL_ID) acc.lunch += end - r.startedAt;
     }
     if (activeBreak) {
       const elapsed = Math.min(
         activeBreak.durationMs,
-        Math.max(0, Date.now() - activeBreak.startedAt),
+        Math.max(0, now - activeBreak.startedAt),
       );
       acc[activeBreak.kind] += elapsed;
     }
@@ -433,84 +463,79 @@ export const TaskPanelsApp: React.FC<TaskPanelsAppProps> = ({ authUser }) => {
 
   const startPanelTimer = useCallback((panelId: string) => {
     const now = Date.now();
-    const prev = activeTimerRef.current;
     // Starting any panel timer dismisses an active break — the user chose
     // to work again, so bank the break's elapsed and don't auto-resume.
     flushBreakRun(activeBreakRef.current, now);
     setActiveBreak(null);
-    if (prev && prev.panelId === panelId) return;
-    if (prev) {
-      appendRun(prev.panelId, prev.startedAt, now);
-    }
-    setActiveTimer({ panelId, startedAt: now });
-  }, [appendRun, flushBreakRun]);
+    switchOpenRun(panelId, now);
+  }, [flushBreakRun, switchOpenRun]);
 
   const stopPanelTimer = useCallback(() => {
-    const now = Date.now();
-    const prev = activeTimerRef.current;
-    if (prev) {
-      appendRun(prev.panelId, prev.startedAt, now);
-    }
-    setActiveTimer(null);
-  }, [appendRun]);
+    closeOpenRun(Date.now());
+  }, [closeOpenRun]);
 
   const setPanelElapsed = useCallback((panelId: string, ms: number) => {
     // Override semantics: replace all historical runs for this panel with
-    // a single synthetic run of length `ms`, ending "now". If the panel is
-    // the active one, restart the in-flight run from now.
+    // a single synthetic closed run of length `ms`, ending "now". If the
+    // panel is the active one, restart the in-flight OPEN run from now so
+    // the live tick continues.
     //
-    // Back-start trimming: when the slider is moved for the currently active
-    // panel, the implied start time (now - ms) is in the past. Any other
-    // panel whose run ends after that implied start overlaps — trim those
-    // runs back so time accounting stays consistent. This handles the "I
-    // should have switched 30 min ago" case: Panel A's banked run shrinks
-    // by the same amount Panel B was back-started.
+    // Back-start trimming: when the slider is moved for the currently
+    // active panel, the implied start time (now - ms) is in the past. Any
+    // other panel whose run ends after that implied start overlaps — trim
+    // those runs back so time accounting stays consistent.
     const safe = Math.max(0, Math.floor(ms));
     const now = Date.now();
-    const isActivePanel = activeTimerRef.current?.panelId === panelId;
     setRuns(prev => {
-      // Remove all existing runs for this panel.
+      const wasActivePanel = prev.some(
+        r => r.endedAt === null && r.panelId === panelId,
+      );
+      // Remove all existing runs for this panel (open + closed).
       const others = prev.filter(r => r.panelId !== panelId);
 
       // When adjusting the active panel, trim overlapping runs from other panels.
       const impliedStart = now - safe;
-      const trimmedOthers: Run[] = isActivePanel && safe > 0
+      const trimmedOthers: Run[] = wasActivePanel && safe > 0
         ? others.flatMap(r => {
-            if (r.endedAt <= impliedStart) return [r]; // no overlap, keep as-is
+            const end = r.endedAt ?? now;
+            if (end <= impliedStart) return [r];
             const trimmedEnd = impliedStart;
-            if (trimmedEnd <= r.startedAt) return []; // fully consumed, drop
-            return [{ ...r, endedAt: trimmedEnd }];
+            if (trimmedEnd <= r.startedAt) return [];
+            // Preserve open-run state: trimming the end of an open run
+            // still leaves it open if it was open (shouldn't normally hit
+            // since another panel being open while `panelId` was also open
+            // is impossible, but guard anyway).
+            return [{ ...r, endedAt: r.endedAt === null ? null : trimmedEnd }];
           })
         : others;
 
       if (safe > 0) {
         trimmedOthers.push(makeRun(panelId, impliedStart, now));
       }
+      // If this panel was active, reopen a fresh open run from now so the
+      // live timer keeps ticking.
+      if (wasActivePanel) {
+        trimmedOthers.push(makeOpenRun(panelId, now));
+      }
       return trimmedOthers;
     });
-    const cur = activeTimerRef.current;
-    if (cur && cur.panelId === panelId) {
-      setActiveTimer({ panelId, startedAt: now });
-    }
   }, []);
 
   // ---- Break actions ----
 
   const startBreak = useCallback((kind: BreakKind) => {
     const now = Date.now();
-    const current = activeTimerRef.current;
-    const resumePanelId = current?.panelId ?? null;
-    // Pause the active panel by appending its run.
-    if (current) {
-      appendRun(current.panelId, current.startedAt, now);
-      setActiveTimer(null);
-    }
+    // Read resume panel from the open run (if any) BEFORE closing it.
+    const openRun = runsRef.current.find(r => r.endedAt === null) ?? null;
+    const resumePanelId = openRun?.panelId ?? null;
+    // Pause the active panel by closing its open run.
+    closeOpenRun(now);
     setActiveBreak(prev => {
       // Toggle off when the same kind is tapped again.
       if (prev && prev.kind === kind) {
         flushBreakRun(prev, now);
         if (prev.resumePanelId) {
-          setActiveTimer({ panelId: prev.resumePanelId, startedAt: Date.now() });
+          switchOpenRun(prev.resumePanelId, Date.now());
         }
         return null;
       }
@@ -524,18 +549,18 @@ export const TaskPanelsApp: React.FC<TaskPanelsAppProps> = ({ authUser }) => {
         resumePanelId: carriedResume,
       };
     });
-  }, [appendRun, flushBreakRun, breakDurationsMs]);
+  }, [closeOpenRun, switchOpenRun, flushBreakRun, breakDurationsMs]);
 
   const cancelBreak = useCallback(() => {
     setActiveBreak(prev => {
       if (!prev) return null;
       flushBreakRun(prev, Date.now());
       if (prev.resumePanelId) {
-        setActiveTimer({ panelId: prev.resumePanelId, startedAt: Date.now() });
+        switchOpenRun(prev.resumePanelId, Date.now());
       }
       return null;
     });
-  }, [flushBreakRun]);
+  }, [flushBreakRun, switchOpenRun]);
 
   // Auto-expire the active break.
   useEffect(() => {
@@ -546,7 +571,7 @@ export const TaskPanelsApp: React.FC<TaskPanelsAppProps> = ({ authUser }) => {
       const resumeId = activeBreak.resumePanelId;
       setActiveBreak(null);
       if (resumeId) {
-        setActiveTimer({ panelId: resumeId, startedAt: Date.now() });
+        switchOpenRun(resumeId, Date.now());
       }
     };
     if (remaining <= 0) {
@@ -555,7 +580,7 @@ export const TaskPanelsApp: React.FC<TaskPanelsAppProps> = ({ authUser }) => {
     }
     const id = window.setTimeout(fire, remaining);
     return () => window.clearTimeout(id);
-  }, [activeBreak, flushBreakRun]);
+  }, [activeBreak, flushBreakRun, switchOpenRun]);
 
   // ---- Catalog actions ----
 
@@ -610,15 +635,11 @@ export const TaskPanelsApp: React.FC<TaskPanelsAppProps> = ({ authUser }) => {
     setPanels(prev => [...prev, instance]);
     // Start timing immediately — the user picked it, they want it running.
     const now = Date.now();
-    const prev = activeTimerRef.current;
     flushBreakRun(activeBreakRef.current, now);
     setActiveBreak(null);
-    if (prev) {
-      appendRun(prev.panelId, prev.startedAt, now);
-    }
-    setActiveTimer({ panelId: instance.id, startedAt: now });
+    switchOpenRun(instance.id, now);
     return instance;
-  }, [panelCatalog, appendRun, flushBreakRun]);
+  }, [panelCatalog, switchOpenRun, flushBreakRun]);
 
   // Atomic create-and-start: adds the new type to the catalog AND
   // spins up an instance in the same call. Avoids the stale-closure
@@ -632,14 +653,12 @@ export const TaskPanelsApp: React.FC<TaskPanelsAppProps> = ({ authUser }) => {
       const instance = makePanelFromType(type);
       setPanels(prev => [...prev, instance]);
       const now = Date.now();
-      const prev = activeTimerRef.current;
       flushBreakRun(activeBreakRef.current, now);
       setActiveBreak(null);
-      if (prev) appendRun(prev.panelId, prev.startedAt, now);
-      setActiveTimer({ panelId: instance.id, startedAt: now });
+      switchOpenRun(instance.id, now);
       return instance;
     },
-    [appendRun, flushBreakRun],
+    [switchOpenRun, flushBreakRun],
   );
 
   // Meetings skip the catalog (they're one-shot, not templates) and
@@ -651,16 +670,12 @@ export const TaskPanelsApp: React.FC<TaskPanelsAppProps> = ({ authUser }) => {
       const instance = makeMeetingPanel(input);
       setPanels(prev => [...prev, instance]);
       const now = Date.now();
-      const prev = activeTimerRef.current;
       flushBreakRun(activeBreakRef.current, now);
       setActiveBreak(null);
-      if (prev) {
-        appendRun(prev.panelId, prev.startedAt, now);
-      }
-      setActiveTimer({ panelId: instance.id, startedAt: now });
+      switchOpenRun(instance.id, now);
       return instance;
     },
-    [appendRun, flushBreakRun],
+    [switchOpenRun, flushBreakRun],
   );
 
   const createCommuteInstance = useCallback(
@@ -668,16 +683,12 @@ export const TaskPanelsApp: React.FC<TaskPanelsAppProps> = ({ authUser }) => {
       const instance = makeCommutePanel(input);
       setPanels(prev => [...prev, instance]);
       const now = Date.now();
-      const prev = activeTimerRef.current;
       flushBreakRun(activeBreakRef.current, now);
       setActiveBreak(null);
-      if (prev) {
-        appendRun(prev.panelId, prev.startedAt, now);
-      }
-      setActiveTimer({ panelId: instance.id, startedAt: now });
+      switchOpenRun(instance.id, now);
       return instance;
     },
-    [appendRun, flushBreakRun],
+    [switchOpenRun, flushBreakRun],
   );
 
   const updatePanel = useCallback((id: string, patch: Partial<Panel>) => {
@@ -685,16 +696,15 @@ export const TaskPanelsApp: React.FC<TaskPanelsAppProps> = ({ authUser }) => {
   }, []);
 
   const deletePanelInstance = useCallback((id: string) => {
-    // Stop the timer if this instance is active — bank the elapsed first.
-    const cur = activeTimerRef.current;
-    if (cur && cur.panelId === id) {
-      appendRun(id, cur.startedAt, Date.now());
-      setActiveTimer(null);
-    }
+    // Stop the timer if this instance is active — close the open run first.
+    const now = Date.now();
+    setRuns(prev => prev.map(r =>
+      r.endedAt === null && r.panelId === id ? { ...r, endedAt: now } : r,
+    ));
     setPanels(prev => prev.filter(p => p.id !== id));
     // Runs are kept (historical) so deleted instances don't vanish from
     // past reports — but we mark them orphan by leaving them in place.
-  }, [appendRun]);
+  }, []);
 
   // Navigate is declared below; endMyDay needs it, so we forward-ref it.
   const navigateRef = useRef<(s: PreviewScreen, opts?: NavigateOptions) => void>(() => {});
@@ -702,45 +712,55 @@ export const TaskPanelsApp: React.FC<TaskPanelsAppProps> = ({ authUser }) => {
   const endMyDay = useCallback(() => {
     const now = Date.now();
     // Bank active timer and active break.
-    const cur = activeTimerRef.current;
-    if (cur) {
-      appendRun(cur.panelId, cur.startedAt, now);
-      setActiveTimer(null);
-    }
+    closeOpenRun(now);
     flushBreakRun(activeBreakRef.current, now);
     setActiveBreak(null);
     // Mark every active instance as done.
     setPanels(prev => prev.map(p => (p.status === 'active' ? { ...p, status: 'done' } : p)));
     // Land on Prepare Summary so the user can review and generate.
     navigateRef.current('prepare-summary');
-  }, [appendRun, flushBreakRun]);
+  }, [closeOpenRun, flushBreakRun]);
 
   // Silently archive yesterday's panel instances when the calendar day rolls
   // over. `cutoff` is the epoch ms of midnight — any running timer is ended
   // there so the run lands on yesterday in reports, not today.
   const performMidnightReset = useCallback((cutoff: number) => {
-    const cur = activeTimerRef.current;
-    if (cur) {
-      appendRun(cur.panelId, cur.startedAt, cutoff);
-      setActiveTimer(null);
-    }
+    closeOpenRun(cutoff);
     flushBreakRun(activeBreakRef.current, cutoff);
     setActiveBreak(null);
     setPanels(prev => prev.map(p => (p.status === 'active' ? { ...p, status: 'done' } : p)));
     try { localStorage.setItem(LAST_ACTIVE_DATE_KEY, todayISO()); } catch { /* ignore */ }
-  }, [appendRun, flushBreakRun]);
+  }, [closeOpenRun, flushBreakRun]);
 
-  // On mount: if the stored last-active date is from a previous day, fire the
-  // reset immediately (handles overnight case and multi-day absence).
+  // Stale open run banner: a run that was still open from before today
+  // (user forgot to end their day, or the open run came from a different
+  // device's yesterday session via cloud sync). We auto-close it at
+  // yesterday-end and show a dismissible banner so the user knows.
+  const [staleRunBanner, setStaleRunBanner] = useState<{
+    panelId: string;
+    closedAt: number;
+  } | null>(null);
+
+  // On mount: close any open run whose startedAt is from before today.
+  // Handles overnight / multi-day absence / cross-device open-run sync.
   useEffect(() => {
-    const stored = (() => { try { return localStorage.getItem(LAST_ACTIVE_DATE_KEY); } catch { return null; } })();
-    const today = todayISO();
-    if (stored !== today) {
-      // End any in-flight run at the midnight boundary that just passed.
-      performMidnightReset(startOfTodayMs());
+    const todayMidnight = startOfTodayMs();
+    const staleOpen = runsRef.current.find(
+      r => r.endedAt === null && r.startedAt < todayMidnight,
+    );
+    if (staleOpen) {
+      setRuns(prev => prev.map(r =>
+        r.endedAt === null && r.startedAt < todayMidnight
+          ? { ...r, endedAt: todayMidnight }
+          : r,
+      ));
+      setPanels(prev => prev.map(p =>
+        p.status === 'active' ? { ...p, status: 'done' } : p,
+      ));
+      setStaleRunBanner({ panelId: staleOpen.panelId, closedAt: todayMidnight });
     }
-    // Stamp today so tomorrow's load can detect the day change.
-    try { localStorage.setItem(LAST_ACTIVE_DATE_KEY, today); } catch { /* ignore */ }
+    // Stamp today so existing midnight-reset bookkeeping keeps working.
+    try { localStorage.setItem(LAST_ACTIVE_DATE_KEY, todayISO()); } catch { /* ignore */ }
     // Intentional: run once on mount only.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -1045,6 +1065,36 @@ export const TaskPanelsApp: React.FC<TaskPanelsAppProps> = ({ authUser }) => {
         <div className="flex-1 flex flex-col overflow-hidden">
           {isHome ? (
             <main className="flex-1 overflow-auto">
+              {staleRunBanner && (
+                <div className="mx-4 mt-4 p-3 rounded-xl border border-amber-200 bg-amber-50 flex items-start gap-3">
+                  <svg className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <circle cx="12" cy="12" r="9" />
+                    <path strokeLinecap="round" d="M12 7v5l3 2" />
+                  </svg>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-amber-900">
+                      Yesterday's timer was still running
+                    </p>
+                    <p className="text-xs text-amber-800 mt-0.5">
+                      We closed{' '}
+                      <span className="font-medium">
+                        {panels.find(p => p.id === staleRunBanner.panelId)?.name ?? 'your panel'}
+                      </span>{' '}
+                      at midnight so today's report starts clean. Tap a panel to start tracking again.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setStaleRunBanner(null)}
+                    aria-label="Dismiss"
+                    className="shrink-0 text-amber-700 hover:text-amber-900 p-1"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" d="M6 6l12 12M18 6L6 18" />
+                    </svg>
+                  </button>
+                </div>
+              )}
               <HomeScreen />
             </main>
           ) : (

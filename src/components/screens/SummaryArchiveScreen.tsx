@@ -110,12 +110,13 @@ export const SummaryArchiveScreen: React.FC<SummaryArchiveScreenProps> = ({ embe
   const dayRuns = useMemo(() => {
     const startMs = startOfDay(selectedIso).getTime();
     const endMs = endOfDay(selectedIso).getTime();
+    const nowMs = Date.now();
     return runs
-      .filter(r => r.endedAt > startMs && r.startedAt < endMs)
+      .filter(r => (r.endedAt ?? nowMs) > startMs && r.startedAt < endMs)
       .map(r => ({
         ...r,
         startedAt: Math.max(r.startedAt, startMs),
-        endedAt: Math.min(r.endedAt, endMs),
+        endedAt: Math.min(r.endedAt ?? nowMs, endMs),
       }))
       .sort((a, b) => a.startedAt - b.startedAt);
   }, [runs, selectedIso]);

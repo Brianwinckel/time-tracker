@@ -39,7 +39,8 @@ interface DbRunRow {
   user_id: string;
   panel_id: string;
   started_at: string;
-  ended_at: string;
+  /** null = currently running (open run). */
+  ended_at: string | null;
 }
 
 interface DbProjectRow {
@@ -82,7 +83,7 @@ function runToDb(run: Run, userId: string): DbRunRow {
     user_id: userId,
     panel_id: run.panelId,
     started_at: new Date(run.startedAt).toISOString(),
-    ended_at: new Date(run.endedAt).toISOString(),
+    ended_at: run.endedAt === null ? null : new Date(run.endedAt).toISOString(),
   };
 }
 function runFromDb(row: DbRunRow): Run {
@@ -90,7 +91,7 @@ function runFromDb(row: DbRunRow): Run {
     id: row.id,
     panelId: row.panel_id,
     startedAt: new Date(row.started_at).getTime(),
-    endedAt: new Date(row.ended_at).getTime(),
+    endedAt: row.ended_at === null ? null : new Date(row.ended_at).getTime(),
   };
 }
 
@@ -242,12 +243,16 @@ export function diffPushPanels(next: Panel[]): void {
   lastPanels = next.map(p => ({ ...p }));
 }
 
-// ---- Public API: Runs (append-only) -------------------------
+// ---- Public API: Runs (upsert on change) --------------------
+// A run's endedAt can flip from null (open) to a number (closed),
+// so we keep full objects in the baseline and push whenever a run
+// is new OR its endedAt has changed. startedAt is write-once, we
+// don't bother diffing it.
 
-let lastRunIds: Set<string> = new Set();
+let lastRunsById: Map<string, Run> = new Map();
 
 export function bindRunsBaseline(runs: Run[]): void {
-  lastRunIds = new Set(runs.map(r => r.id));
+  lastRunsById = new Map(runs.map(r => [r.id, { ...r }]));
 }
 
 export function diffPushRuns(next: Run[]): void {
@@ -255,12 +260,13 @@ export function diffPushRuns(next: Run[]): void {
   if (!userId) return;
   const pending = getPending('user_runs');
   for (const run of next) {
-    if (!lastRunIds.has(run.id)) {
+    const prev = lastRunsById.get(run.id);
+    if (!prev || prev.endedAt !== run.endedAt) {
       pending.upserts.set(run.id, runToDb(run, userId));
-      lastRunIds.add(run.id);
+      lastRunsById.set(run.id, { ...run });
     }
   }
-  // No deletes for runs — they're append-only.
+  // No deletes for runs — they're append-only at the user level.
   if (pending.upserts.size > 0) scheduleFlush('user_runs');
 }
 
