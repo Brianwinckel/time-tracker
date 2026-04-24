@@ -20,6 +20,7 @@ import { getCloudStateUser } from './cloudState';
 import { enqueue } from './cloudQueue';
 import type { Panel, Run } from './panelCatalog';
 import type { Project } from './projects';
+import type { Client } from './clients';
 import type { SummaryInput } from './summaryModel';
 import type { SavedSummaryMap } from './savedSummaries';
 
@@ -57,6 +58,16 @@ interface DbSavedSummaryRow {
   user_id: string;
   date_key: string;
   data: SummaryInput;
+  created_at?: string;
+  updated_at?: string;
+}
+
+interface DbClientRow {
+  id: string;
+  user_id: string | null;
+  team_id: string | null;
+  name: string;
+  archived: boolean;
   created_at?: string;
   updated_at?: string;
 }
@@ -119,6 +130,28 @@ function projectFromDb(row: DbProjectRow): Project {
   };
 }
 
+function clientToDb(c: Client, userId: string): Omit<DbClientRow, 'updated_at' | 'created_at'> {
+  // Solo users: set user_id, team_id null. Team-scoped: set team_id, user_id null.
+  // The scope check constraint in Postgres enforces exactly-one.
+  return {
+    id: c.id,
+    user_id: c.teamId ? null : userId,
+    team_id: c.teamId ?? null,
+    name: c.name,
+    archived: c.archived,
+  };
+}
+function clientFromDb(row: DbClientRow): Client {
+  return {
+    id: row.id,
+    name: row.name,
+    archived: row.archived,
+    createdAt: row.created_at ? new Date(row.created_at).getTime() : Date.now(),
+    teamId: row.team_id,
+    ownerUserId: row.user_id ?? undefined,
+  };
+}
+
 // ---- Debounced batch writer ---------------------------------
 
 // Per-table pending buckets. We collect upserts and deletes until a
@@ -142,6 +175,7 @@ const TABLE_CONFIG: Record<string, TableConfig> = {
   user_runs:              { onConflict: 'id',                  deleteFilterColumn: 'id' },
   user_projects:          { onConflict: 'id',                  deleteFilterColumn: 'id' },
   user_saved_summaries:   { onConflict: 'user_id,date_key',    deleteFilterColumn: 'date_key', scopeDeletesToUser: true },
+  clients:                { onConflict: 'id',                  deleteFilterColumn: 'id' },
 };
 
 const pendings: Record<string, Pending> = {};
@@ -309,6 +343,51 @@ export function diffPushProjects(next: Project[]): void {
   lastProjects = next.map(p => ({ ...p }));
 }
 
+// ---- Public API: Clients ------------------------------------
+//
+// Scope handling: team-scoped clients (teamId set) can be edited
+// by any team member; user-scoped clients (teamId null) by their
+// owner only. The RLS policies enforce this; the diff-push side
+// here just skips rows we don't own to avoid queueing failed
+// writes into the retry queue.
+
+let lastClients: Client[] = [];
+
+export function bindClientsBaseline(clients: Client[]): void {
+  lastClients = clients.map(c => ({ ...c }));
+}
+
+export function diffPushClients(next: Client[]): void {
+  const userId = getCloudStateUser();
+  if (!userId) return;
+
+  // Skip rows the current user can't write to (team rows created by
+  // someone else are still writable under RLS, but a user-scoped row
+  // owned by a different user would be blocked — defensive filter).
+  const isWritable = (c: Client) =>
+    !c.ownerUserId || c.ownerUserId === userId || c.teamId != null;
+  const ownedPrev = lastClients.filter(isWritable);
+  const ownedNext = next.filter(isWritable);
+
+  const prevMap = new Map(ownedPrev.map(c => [c.id, c]));
+  const nextMap = new Map(ownedNext.map(c => [c.id, c]));
+  const pending = getPending('clients');
+
+  for (const [id, client] of nextMap) {
+    const prev = prevMap.get(id);
+    if (!prev || JSON.stringify(prev) !== JSON.stringify(client)) {
+      pending.upserts.set(id, clientToDb(client, userId));
+    }
+  }
+  for (const id of prevMap.keys()) {
+    if (!nextMap.has(id)) pending.deletes.add(id);
+  }
+  if (pending.upserts.size > 0 || pending.deletes.size > 0) {
+    scheduleFlush('clients');
+  }
+  lastClients = next.map(c => ({ ...c }));
+}
+
 // ---- Public API: Saved summaries ----------------------------
 //
 // The app holds these as a SavedSummaryMap (date-key → SummaryInput).
@@ -367,6 +446,7 @@ export interface RelationalSnapshot {
   panels: Panel[];
   runs: Run[];
   projects: Project[];
+  clients: Client[];
   savedSummaries: SavedSummaryMap;
 }
 
@@ -387,9 +467,10 @@ export async function hydrateRelationalFromCloud(
   localPanels: Panel[],
   localRuns: Run[],
   localProjects: Project[],
+  localClients: Client[],
   localSavedSummaries: SavedSummaryMap,
 ): Promise<RelationalSnapshot> {
-  const [panelsRes, runsRes, ownedProjectsRes, sharedProjectsRes, summariesRes] = await Promise.all([
+  const [panelsRes, runsRes, ownedProjectsRes, sharedProjectsRes, clientsRes, summariesRes] = await Promise.all([
     supabase.from('user_panels').select('*').eq('user_id', userId),
     supabase.from('user_runs').select('*').eq('user_id', userId),
     supabase.from('user_projects').select('*').eq('user_id', userId),
@@ -398,6 +479,10 @@ export async function hydrateRelationalFromCloud(
     // Kept as a separate query so "owned" drives the first-upload path
     // below without shared rows masking an empty-cloud state.
     supabase.from('user_projects').select('*').neq('user_id', userId),
+    // RLS already scopes this to (user-owned OR my team's rows), so a
+    // plain select without explicit filters returns exactly what this
+    // user should see.
+    supabase.from('clients').select('*'),
     supabase.from('user_saved_summaries').select('*').eq('user_id', userId),
   ]);
 
@@ -459,6 +544,33 @@ export async function hydrateRelationalFromCloud(
     projects = [...projects, ...shared];
   }
 
+  // --- Clients ---
+  // No per-user / per-team filter here — RLS returns exactly the rows
+  // this user can see. We upload local rows only when cloud is empty
+  // for this user (initial migration path for solo users who had
+  // clients locally before this table existed).
+  let clients: Client[];
+  if (clientsRes.error) {
+    console.error('[cloudRelational] clients fetch:', clientsRes.error.message);
+    clients = localClients;
+  } else if ((clientsRes.data ?? []).length > 0) {
+    clients = (clientsRes.data as DbClientRow[]).map(clientFromDb);
+  } else if (localClients.length > 0) {
+    // First-time migration: upload as user-scoped (teamId null) so
+    // local solo clients become real rows. Team-scoped uploads only
+    // happen when the user explicitly creates a team client.
+    const rows = localClients
+      .filter(c => !c.teamId)
+      .map(c => clientToDb(c, userId));
+    if (rows.length > 0) {
+      const { error } = await supabase.from('clients').upsert(rows, { onConflict: 'id' });
+      if (error) console.error('[cloudRelational] initial clients upload:', error.message);
+    }
+    clients = localClients.map(c => ({ ...c, ownerUserId: c.teamId ? c.ownerUserId : userId }));
+  } else {
+    clients = [];
+  }
+
   // --- Saved summaries ---
   let savedSummaries: SavedSummaryMap;
   const localSavedKeys = Object.keys(localSavedSummaries);
@@ -489,7 +601,8 @@ export async function hydrateRelationalFromCloud(
   bindPanelsBaseline(panels);
   bindRunsBaseline(runs);
   bindProjectsBaseline(projects);
+  bindClientsBaseline(clients);
   bindSavedSummariesBaseline(savedSummaries);
 
-  return { panels, runs, projects, savedSummaries };
+  return { panels, runs, projects, clients, savedSummaries };
 }

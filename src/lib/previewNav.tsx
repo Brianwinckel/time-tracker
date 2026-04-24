@@ -9,6 +9,7 @@ import type { MockPanel, Panel, Run } from './panelCatalog';
 import { DEFAULT_PANELS } from './panelCatalog';
 import type { Project } from './projects';
 import { DEFAULT_PROJECTS } from './projects';
+import type { Client } from './clients';
 import type { UserProfile } from './profile';
 import { DEFAULT_PROFILE } from './profile';
 import type { AppPreferences } from './preferences';
@@ -29,6 +30,7 @@ export type PreviewScreen =
   | 'profile'
   | 'settings'
   | 'settings-projects'
+  | 'settings-clients'
   | 'settings-panels'
   | 'settings-advanced-labels'
   | 'settings-breaks'
@@ -132,7 +134,7 @@ type NavContextValue = {
   // ---- Projects (first-class workflow + reporting object) ----
   projects: Project[];
   /** Create a new project and return it. Bumps lastUsedAt to now. */
-  createProject: (input: { name: string; colorId?: string; client?: string; description?: string; departmentId?: string | null }) => Project;
+  createProject: (input: { name: string; colorId?: string; client?: string; clientId?: string | null; description?: string; departmentId?: string | null }) => Project;
   /** Patch an existing project's editable fields. */
   updateProject: (id: string, patch: Partial<Omit<Project, 'id' | 'createdAt'>>) => void;
   /** Soft-archive a project. Existing panels keep their projectId. */
@@ -143,6 +145,18 @@ type NavContextValue = {
   deleteProject: (id: string) => void;
   /** Bump lastUsedAt without other edits. Called when a panel picks this project. */
   touchProject: (id: string) => void;
+
+  // ---- Clients (parent-of-project, team-shared when on a team) ----
+  clients: Client[];
+  /** Create a client. teamId null = personal; teamId set = team-shared. */
+  createClient: (input: { name: string; teamId?: string | null }) => Client;
+  /** Patch an existing client's editable fields. */
+  updateClient: (id: string, patch: Partial<Omit<Client, 'id' | 'createdAt' | 'ownerUserId'>>) => void;
+  /** Soft-archive; keeps historical project attribution intact. */
+  archiveClient: (id: string) => void;
+  unarchiveClient: (id: string) => void;
+  /** Hard-delete; client_id FK on projects becomes null. */
+  deleteClient: (id: string) => void;
 
   // ---- User profile ("My account" — name, avatar, role, etc.) ----
   userProfile: UserProfile;
@@ -263,6 +277,18 @@ export const useNav = (): NavContextValue => {
       unarchiveProject: noop,
       deleteProject: noop,
       touchProject: noop,
+      clients: [],
+      createClient: ({ name, teamId }) => ({
+        id: 'cli_noop',
+        name,
+        archived: false,
+        createdAt: Date.now(),
+        teamId: teamId ?? null,
+      }),
+      updateClient: noop,
+      archiveClient: noop,
+      unarchiveClient: noop,
+      deleteClient: noop,
       userProfile: DEFAULT_PROFILE,
       updateProfile: noop,
       currentSummary: null,

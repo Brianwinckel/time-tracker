@@ -174,6 +174,7 @@ const buildSections = (handlers: SectionHandlers): SectionDef[] => [
     ),
     items: [
       { label: 'Projects', screen: 'settings-projects', emphasis: true },
+      { label: 'Clients', screen: 'settings-clients' },
       { label: 'Panels', screen: 'settings-panels' },
       { label: 'Advanced Labels', screen: 'settings-advanced-labels' },
     ],
@@ -712,6 +713,259 @@ const FeatureRequestModal: React.FC<{ onClose: () => void }> = ({ onClose }) => 
 };
 
 // ============================================================
+// Clients management page
+// ============================================================
+
+interface ClientFormState {
+  mode: 'new' | string; // 'new' or the client id being edited
+  name: string;
+}
+
+const blankClientForm = (): ClientFormState => ({ mode: 'new', name: '' });
+
+const SettingsClients: React.FC = () => {
+  const {
+    clients,
+    createClient,
+    updateClient,
+    archiveClient,
+    unarchiveClient,
+    deleteClient,
+  } = useNav();
+  const { profile } = useAuthOptional() ?? { profile: null };
+
+  const [form, setForm] = useState<ClientFormState | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
+
+  const isOnTeam = !!profile?.team_id;
+  const myUserId = profile?.id ?? null;
+
+  const visibleClients = useMemo(() => {
+    return clients
+      .filter(c => (showArchived ? c.archived : !c.archived))
+      .slice()
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [clients, showArchived]);
+
+  const archivedCount = useMemo(
+    () => clients.filter(c => c.archived).length,
+    [clients],
+  );
+
+  const isFormValid = !!form && form.name.trim().length > 0;
+
+  const submitForm = () => {
+    if (!form || !isFormValid) return;
+    if (form.mode === 'new') {
+      // createClient auto-resolves teamId from the current profile (team
+      // member → shared; solo → personal). No UI toggle needed — the
+      // scope matches where the user works.
+      createClient({ name: form.name.trim() });
+    } else {
+      updateClient(form.mode, { name: form.name.trim() });
+    }
+    setForm(null);
+  };
+
+  const action = (
+    <button
+      type="button"
+      onClick={() => setForm(blankClientForm())}
+      className="inline-flex items-center gap-1.5 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 px-3 py-2 rounded-lg"
+    >
+      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round">
+        <path d="M12 5v14M5 12h14" />
+      </svg>
+      New Client
+    </button>
+  );
+
+  return (
+    <SettingsShell
+      title="Clients"
+      crumb={{ label: 'Workspace', screen: 'settings' }}
+      action={action}
+    >
+      <p className="text-sm text-slate-500 mb-6">
+        Clients group projects for reporting. Attach a client to any
+        project and roll up time spent across all of that client's work.
+        {isOnTeam ? ' Clients you create here are shared with your whole team.' : ''}
+      </p>
+
+      <div className="flex items-center gap-2 mb-4">
+        <button
+          type="button"
+          onClick={() => setShowArchived(false)}
+          className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${
+            !showArchived
+              ? 'bg-slate-900 text-white'
+              : 'bg-white border border-slate-200 text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          Active ({clients.length - archivedCount})
+        </button>
+        <button
+          type="button"
+          onClick={() => setShowArchived(true)}
+          className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${
+            showArchived
+              ? 'bg-slate-900 text-white'
+              : 'bg-white border border-slate-200 text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          Archived ({archivedCount})
+        </button>
+      </div>
+
+      {visibleClients.length === 0 ? (
+        <div className="bg-white rounded-2xl border border-dashed border-slate-300 p-10 text-center">
+          <p className="text-sm text-slate-500">
+            {showArchived ? 'No archived clients.' : 'No clients yet — create one to get started.'}
+          </p>
+        </div>
+      ) : (
+        <ul className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+          {visibleClients.map(c => {
+            // For team clients, anyone on the team can edit. For user
+            // clients, only the creator can. myUserId unavailable in
+            // preview; treat as editable in that case.
+            const isEditable = !c.ownerUserId || !myUserId || c.ownerUserId === myUserId || !!c.teamId;
+            return (
+              <li
+                key={c.id}
+                className="border-b border-slate-100 last:border-b-0 px-5 py-4 flex items-center gap-3"
+              >
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-slate-900 truncate flex items-center gap-2">
+                    <span className="truncate">{c.name}</span>
+                    {c.teamId && (
+                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 uppercase shrink-0">
+                        Team
+                      </span>
+                    )}
+                  </p>
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  {!isEditable ? (
+                    <span className="text-[11px] text-slate-400 px-2 py-1">Read-only</span>
+                  ) : !c.archived ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setForm({ mode: c.id, name: c.name })}
+                        className="text-xs font-semibold text-slate-600 hover:text-slate-900 px-2 py-1 rounded-md hover:bg-slate-100"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => archiveClient(c.id)}
+                        className="text-xs font-semibold text-slate-500 hover:text-slate-900 px-2 py-1 rounded-md hover:bg-slate-100"
+                      >
+                        Archive
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => unarchiveClient(c.id)}
+                        className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 px-2 py-1 rounded-md hover:bg-emerald-50"
+                      >
+                        Restore
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (window.confirm(`Delete "${c.name}" permanently? Projects attached to this client will lose the attribution but stay.`)) {
+                            deleteClient(c.id);
+                          }
+                        }}
+                        className="text-xs font-semibold text-rose-600 hover:text-rose-700 px-2 py-1 rounded-md hover:bg-rose-50"
+                      >
+                        Delete
+                      </button>
+                    </>
+                  )}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      {form && (
+        <div
+          className="fixed inset-0 bg-slate-900/40 z-50 flex items-end md:items-center justify-center p-0 md:p-4"
+          onClick={() => setForm(null)}
+        >
+          <div
+            className="bg-white w-full max-w-md md:rounded-2xl rounded-t-2xl shadow-xl"
+            onClick={e => e.stopPropagation()}
+          >
+            <header className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+              <h3 className="text-base font-bold text-slate-900">
+                {form.mode === 'new' ? 'New Client' : 'Edit Client'}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setForm(null)}
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-900 hover:bg-slate-100"
+                aria-label="Close"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M6 6l12 12M6 18L18 6" />
+                </svg>
+              </button>
+            </header>
+            <div className="px-5 py-5 space-y-4">
+              <label className="block">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                  Name
+                </span>
+                <input
+                  type="text"
+                  value={form.name}
+                  onChange={e => setForm({ ...form, name: e.target.value })}
+                  placeholder="e.g. Acme Corp"
+                  className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
+                  autoFocus
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') submitForm();
+                  }}
+                />
+              </label>
+              {isOnTeam && form.mode === 'new' && (
+                <p className="text-xs text-slate-500">
+                  Shared with your team — every member sees this client.
+                </p>
+              )}
+            </div>
+            <footer className="px-5 py-4 border-t border-slate-100 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setForm(null)}
+                className="px-4 py-2 text-sm font-semibold text-slate-600 hover:text-slate-900 rounded-lg"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={submitForm}
+                disabled={!isFormValid}
+                className="px-4 py-2 text-sm font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {form.mode === 'new' ? 'Create' : 'Save'}
+              </button>
+            </footer>
+          </div>
+        </div>
+      )}
+    </SettingsShell>
+  );
+};
+
+// ============================================================
 // Projects management page
 // ============================================================
 
@@ -720,7 +974,12 @@ interface ProjectFormState {
   mode: 'new' | string;
   name: string;
   colorId: string;
-  client: string;
+  /** FK to a Client entity. Empty string = unattached. */
+  clientId: string;
+  /** Legacy free-text client label, preserved when editing rows that
+   *  predate the Clients feature so switching to the dropdown doesn't
+   *  silently lose existing attributions. Blank for new projects. */
+  legacyClient: string;
   description: string;
   shareWithDepartment: boolean;
 }
@@ -729,7 +988,8 @@ const blankForm = (): ProjectFormState => ({
   mode: 'new',
   name: '',
   colorId: 'blue',
-  client: '',
+  clientId: '',
+  legacyClient: '',
   description: '',
   shareWithDepartment: false,
 });
@@ -738,7 +998,8 @@ const editForm = (p: Project): ProjectFormState => ({
   mode: p.id,
   name: p.name,
   colorId: p.colorId,
-  client: p.client ?? '',
+  clientId: p.clientId ?? '',
+  legacyClient: p.client ?? '',
   description: p.description ?? '',
   shareWithDepartment: !!p.departmentId,
 });
@@ -751,8 +1012,15 @@ const SettingsProjects: React.FC = () => {
     archiveProject,
     unarchiveProject,
     deleteProject,
+    clients,
+    createClient,
   } = useNav();
   const { profile } = useAuthOptional() ?? { profile: null };
+
+  const activeClientList = useMemo(
+    () => clients.filter(c => !c.archived).sort((a, b) => a.name.localeCompare(b.name)),
+    [clients],
+  );
 
   const [form, setForm] = useState<ProjectFormState | null>(null);
   const [showArchived, setShowArchived] = useState(false);
@@ -779,11 +1047,18 @@ const SettingsProjects: React.FC = () => {
     if (!form || !isFormValid) return;
     const departmentId =
       canShareWithDepartment && form.shareWithDepartment ? myDepartmentId : null;
+    // Once a project is linked to a Client entity, the legacy free-text
+    // `client` string stops driving display and reporting. Preserve it
+    // on save only when nothing else is linked (so older rows that
+    // haven't been reconciled yet keep showing their original label).
+    const clientId = form.clientId || null;
+    const legacyClient = clientId ? undefined : (form.legacyClient.trim() || undefined);
     if (form.mode === 'new') {
       createProject({
         name: form.name.trim(),
         colorId: form.colorId,
-        client: form.client.trim() || undefined,
+        clientId,
+        client: legacyClient,
         description: form.description.trim() || undefined,
         departmentId,
       });
@@ -791,12 +1066,23 @@ const SettingsProjects: React.FC = () => {
       updateProject(form.mode, {
         name: form.name.trim(),
         colorId: form.colorId,
-        client: form.client.trim() || undefined,
+        clientId,
+        client: legacyClient,
         description: form.description.trim() || undefined,
         departmentId,
       });
     }
     setForm(null);
+  };
+
+  // Inline "+ New client" creation from the dropdown. Creates a client
+  // in the same scope (user vs team) as whatever the current user is,
+  // then immediately selects it in the form.
+  const handleCreateClientInline = () => {
+    const name = window.prompt('New client name:')?.trim();
+    if (!name) return;
+    const c = createClient({ name });
+    if (form) setForm({ ...form, clientId: c.id });
   };
 
   const action = (
@@ -882,11 +1168,15 @@ const SettingsProjects: React.FC = () => {
                       </span>
                     )}
                   </p>
-                  {(p.client || p.description) && (
-                    <p className="text-xs text-slate-500 truncate">
-                      {[p.client, p.description].filter(Boolean).join(' — ')}
-                    </p>
-                  )}
+                  {(() => {
+                    // Prefer a linked Client name over the legacy string.
+                    const linked = p.clientId ? clients.find(c => c.id === p.clientId)?.name : undefined;
+                    const clientLabel = linked ?? p.client;
+                    const parts = [clientLabel, p.description].filter(Boolean);
+                    return parts.length > 0 ? (
+                      <p className="text-xs text-slate-500 truncate">{parts.join(' — ')}</p>
+                    ) : null;
+                  })()}
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
                   {!isOwnedByMe ? (
@@ -978,16 +1268,33 @@ const SettingsProjects: React.FC = () => {
               </label>
               <label className="block">
                 <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                  Client / Context
+                  Client
                   <span className="ml-1 text-slate-400 normal-case font-normal">(optional)</span>
                 </span>
-                <input
-                  type="text"
-                  value={form.client}
-                  onChange={e => setForm({ ...form, client: e.target.value })}
-                  placeholder="e.g. Acme Corp"
-                  className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
-                />
+                <div className="mt-1 flex gap-2">
+                  <select
+                    value={form.clientId}
+                    onChange={e => setForm({ ...form, clientId: e.target.value })}
+                    className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-sm text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
+                  >
+                    <option value="">— No client —</option>
+                    {activeClientList.map(c => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={handleCreateClientInline}
+                    className="shrink-0 px-3 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg"
+                  >
+                    + New
+                  </button>
+                </div>
+                {!form.clientId && form.legacyClient && (
+                  <p className="mt-1 text-[11px] text-slate-400">
+                    Legacy label: <span className="font-medium text-slate-600">{form.legacyClient}</span>. Pick a client above to replace it.
+                  </p>
+                )}
               </label>
               <label className="block">
                 <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
@@ -2544,6 +2851,8 @@ export const SettingsScreen: React.FC = () => {
   switch (screen) {
     case 'settings-projects':
       return <SettingsProjects />;
+    case 'settings-clients':
+      return <SettingsClients />;
     case 'settings-panels':
       return <SettingsPanels />;
     case 'settings-advanced-labels':

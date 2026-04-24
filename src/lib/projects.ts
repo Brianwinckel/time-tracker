@@ -24,8 +24,13 @@ export interface Project {
   name: string;
   /** Short color name — keys into PANEL_COLOR_OPTIONS. */
   colorId: string;
-  /** Optional client / context label, surfaced in lists and reports. */
+  /** Legacy free-text client label. Kept for backward compat with
+   *  projects that existed before Clients became a first-class entity.
+   *  New code should prefer `clientId` (a real FK). When both are set,
+   *  `clientId` wins for display / reporting. */
   client?: string;
+  /** FK to the `clients` table. Null = no client attribution. */
+  clientId?: string | null;
   /** Free-form description used in Settings > Projects. */
   description?: string;
   archived: boolean;
@@ -66,6 +71,7 @@ export function makeProject(input: {
   name: string;
   colorId?: string;
   client?: string;
+  clientId?: string | null;
   description?: string;
   departmentId?: string | null;
 }): Project {
@@ -75,6 +81,7 @@ export function makeProject(input: {
     name: input.name.trim() || 'Untitled Project',
     colorId: input.colorId ?? 'blue',
     client: input.client?.trim() || undefined,
+    clientId: input.clientId ?? null,
     description: input.description?.trim() || undefined,
     archived: false,
     createdAt: now,

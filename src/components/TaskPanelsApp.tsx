@@ -81,6 +81,12 @@ import {
   type Project,
 } from '../lib/projects';
 import {
+  loadClients,
+  saveClients,
+  makeClient,
+  type Client,
+} from '../lib/clients';
+import {
   loadProfile,
   saveProfile,
   type AuthProvider,
@@ -227,6 +233,12 @@ export const TaskPanelsApp: React.FC<TaskPanelsAppProps> = ({ authUser }) => {
   useEffect(() => {
     saveProjects(projects);
   }, [projects]);
+
+  // ---- Clients (parent-of-project; team-shared when on a team) ----
+  const [clients, setClients] = useState<Client[]>(() => loadClients());
+  useEffect(() => {
+    saveClients(clients);
+  }, [clients]);
 
   // ---- User profile ("My account" — name, avatar, role, etc.) ----
   const [userProfile, setUserProfile] = useState<UserProfile>(() => loadProfile());
@@ -782,7 +794,7 @@ export const TaskPanelsApp: React.FC<TaskPanelsAppProps> = ({ authUser }) => {
   // ---- Project actions ----
 
   const createProject = useCallback(
-    (input: { name: string; colorId?: string; client?: string; description?: string; departmentId?: string | null }): Project => {
+    (input: { name: string; colorId?: string; client?: string; clientId?: string | null; description?: string; departmentId?: string | null }): Project => {
       const project = makeProject(input);
       setProjects(prev => [...prev, project]);
       return project;
@@ -812,6 +824,38 @@ export const TaskPanelsApp: React.FC<TaskPanelsAppProps> = ({ authUser }) => {
   const touchProject = useCallback((id: string) => {
     const now = Date.now();
     setProjects(prev => prev.map(p => (p.id === id ? { ...p, lastUsedAt: now } : p)));
+  }, []);
+
+  // ---- Client actions ----
+  // team_id is resolved at call-time from the current profile; callers
+  // opt-in via `teamId` prop when creating team-scoped clients. For a
+  // solo user (no team), teamId is always null.
+  const authTeamId = authProfile?.team_id ?? null;
+  const createClient = useCallback(
+    (input: { name: string; teamId?: string | null }): Client => {
+      const client = makeClient({
+        name: input.name,
+        teamId: input.teamId ?? authTeamId,
+      });
+      setClients(prev => [...prev, client]);
+      return client;
+    },
+    [authTeamId],
+  );
+  const updateClient = useCallback(
+    (id: string, patch: Partial<Omit<Client, 'id' | 'createdAt' | 'ownerUserId'>>) => {
+      setClients(prev => prev.map(c => (c.id === id ? { ...c, ...patch } : c)));
+    },
+    [],
+  );
+  const archiveClient = useCallback((id: string) => {
+    setClients(prev => prev.map(c => (c.id === id ? { ...c, archived: true } : c)));
+  }, []);
+  const unarchiveClient = useCallback((id: string) => {
+    setClients(prev => prev.map(c => (c.id === id ? { ...c, archived: false } : c)));
+  }, []);
+  const deleteClient = useCallback((id: string) => {
+    setClients(prev => prev.filter(c => c.id !== id));
   }, []);
 
   // ---- Summary snapshot ----
@@ -915,6 +959,12 @@ export const TaskPanelsApp: React.FC<TaskPanelsAppProps> = ({ authUser }) => {
     unarchiveProject,
     deleteProject,
     touchProject,
+    clients,
+    createClient,
+    updateClient,
+    archiveClient,
+    unarchiveClient,
+    deleteClient,
     userProfile,
     updateProfile,
     currentSummary,
