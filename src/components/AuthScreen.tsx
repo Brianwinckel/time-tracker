@@ -112,10 +112,7 @@ export const AuthScreen: React.FC = () => {
           <strong className="text-[#1a1a2e]">{email}</strong>
         </p>
 
-        <div
-          className="relative flex justify-center gap-2 mt-6 mb-4"
-          onClick={() => otpInputRef.current?.focus()}
-        >
+        <div className="mt-6 mb-4 flex justify-center">
           <input
             ref={otpInputRef}
             type="text"
@@ -126,34 +123,9 @@ export const AuthScreen: React.FC = () => {
             onChange={e => handleOtpInput(e.target.value)}
             disabled={submitting}
             aria-label="Verification code"
-            // Transparent-but-visible: iOS treats this as a real input
-            // (keyboard stays up between keystrokes). opacity:0 would let
-            // Safari deprioritize it and dismiss the keyboard.
-            style={{
-              color: 'transparent',
-              caretColor: 'transparent',
-              background: 'transparent',
-              WebkitTextFillColor: 'transparent',
-              textShadow: 'none',
-            }}
-            className="absolute inset-0 w-full h-full border-0 outline-none cursor-text disabled:cursor-not-allowed focus:outline-none focus:ring-0"
+            placeholder="••••••"
+            className="w-[240px] h-14 text-center text-2xl font-semibold font-mono tracking-[0.6em] pl-[0.6em] border-[1.5px] border-[#dde0ea] rounded-lg bg-[#f5f6fa] text-[#1a1a2e] outline-none transition focus:border-[#4A90D9] focus:ring-[3px] focus:ring-[#4A90D9]/15 disabled:opacity-50"
           />
-          {Array.from({ length: 6 }).map((_, i) => {
-            const digit = otp[i] || '';
-            const isActive = i === otp.length;
-            return (
-              <div
-                key={i}
-                className={`w-12 h-14 flex items-center justify-center text-2xl font-semibold font-mono border-[1.5px] rounded-lg bg-[#f5f6fa] text-[#1a1a2e] transition ${
-                  isActive
-                    ? 'border-[#4A90D9] ring-[3px] ring-[#4A90D9]/15'
-                    : 'border-[#dde0ea]'
-                } ${submitting ? 'opacity-50' : ''}`}
-              >
-                {digit}
-              </div>
-            );
-          })}
         </div>
 
         {error && <p className={errorCls}>{error}</p>}
