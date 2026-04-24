@@ -25,6 +25,15 @@ import { PANEL_COLOR_OPTIONS, saveCatalog, colorOptionFor } from '../../lib/pane
 
 type Step = 1 | 2 | 3 | 4 | 5;
 
+/**
+ * Logical onboarding stages. Team members skip ROLE because their
+ * department already determined it — asking them again creates
+ * confusion when their department (e.g. "Marketing") doesn't match
+ * what they'd pick (e.g. "DevOps"). The role is still derived from
+ * the department and used to seed starter panels.
+ */
+type Stage = 'welcome' | 'role' | 'panels' | 'audience' | 'ready';
+
 interface OnboardingScreenProps {
   /** Called once the user completes onboarding. The caller receives both
    *  the raw ids (for routing / logic) and the human-readable labels so
@@ -158,7 +167,15 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onComplete, 
     [selectedRole],
   );
 
-  const next = () => setStep(s => Math.min(5, s + 1) as Step);
+  // Stage list drives step navigation. Team members skip 'role' —
+  // their department already determined it via teamContext.suggestedRoleId.
+  const stages: Stage[] = teamContext
+    ? ['welcome', 'panels', 'audience', 'ready']
+    : ['welcome', 'role', 'panels', 'audience', 'ready'];
+  const totalSteps = stages.length;
+  const currentStage: Stage = stages[step - 1] ?? 'welcome';
+
+  const next = () => setStep(s => Math.min(totalSteps, s + 1) as Step);
   const back = () => setStep(s => Math.max(1, s - 1) as Step);
 
   const finish = useCallback(() => {
@@ -535,18 +552,18 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onComplete, 
     <div className="flex items-center justify-center min-h-screen bg-slate-50">
       <div className="w-full max-w-md md:max-w-lg bg-white md:rounded-2xl md:border md:border-slate-200 md:shadow-sm min-h-screen md:min-h-0 md:max-h-[85vh] flex flex-col overflow-hidden">
         {/* Header with step indicator — not on welcome/ready */}
-        {step !== 1 && step !== 5 && (
+        {currentStage !== 'welcome' && currentStage !== 'ready' && (
           <div className="px-5 md:px-8 pt-5 pb-0 flex items-center justify-between">
             <Logo size={28} />
-            <StepIndicator current={step} total={5} />
+            <StepIndicator current={step} total={totalSteps} />
           </div>
         )}
 
-        {step === 1 && renderWelcome()}
-        {step === 2 && renderRoleSelection()}
-        {step === 3 && renderPanels()}
-        {step === 4 && renderAudience()}
-        {step === 5 && renderReady()}
+        {currentStage === 'welcome' && renderWelcome()}
+        {currentStage === 'role' && renderRoleSelection()}
+        {currentStage === 'panels' && renderPanels()}
+        {currentStage === 'audience' && renderAudience()}
+        {currentStage === 'ready' && renderReady()}
       </div>
     </div>
   );
