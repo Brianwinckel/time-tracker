@@ -202,6 +202,13 @@ interface SourceData {
 
 // ---- Helper: border color for card based on outcome ----
 
+const PencilIcon: React.FC<{ className?: string }> = ({ className = 'w-3.5 h-3.5' }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
+    <path d="M18.5 2.5a2.121 2.121 0 113 3L12 15l-4 1 1-4 9.5-9.5z" />
+  </svg>
+);
+
 function cardBorderClass(outcome: PanelOutcome | null): string {
   switch (outcome) {
     case 'follow-up': return 'border-purple-200';
@@ -224,10 +231,15 @@ interface PanelCardHandlers {
   updateFollowUp: (id: string, field: keyof FollowUpDetails, value: string) => void;
   updateBlocker: (id: string, value: string) => void;
   setUnrealizedEffort: (id: string, value: boolean) => void;
+  /** Tap-to-adjust hook. Only wired up for today's reports — for past
+   *  days the underlying setPanelElapsed action would wipe the panel's
+   *  history, so the parent passes `undefined` and the card hides the
+   *  affordance. */
+  onAdjustTime?: (id: string) => void;
 }
 
 const DesktopPanelCard: React.FC<{ panel: PanelData } & PanelCardHandlers> = ({
-  panel, toggleIncluded, setOutcome, updateFollowUp, updateBlocker, setUnrealizedEffort,
+  panel, toggleIncluded, setOutcome, updateFollowUp, updateBlocker, setUnrealizedEffort, onAdjustTime,
 }) => (
   <div className={`bg-white rounded-2xl border ${cardBorderClass(panel.outcome)} p-5 space-y-3`}>
     <div className="flex items-center gap-3">
@@ -244,7 +256,20 @@ const DesktopPanelCard: React.FC<{ panel: PanelData } & PanelCardHandlers> = ({
         </div>
         <p className="text-xs text-slate-400 mt-0.5">{panel.subtitle}</p>
       </div>
-      <span className="text-sm font-mono font-semibold text-slate-600 tabular-nums shrink-0">{panel.time}</span>
+      {onAdjustTime ? (
+        <button
+          type="button"
+          onClick={() => onAdjustTime(panel.id)}
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-transparent hover:border-slate-200 hover:bg-slate-50 group transition-colors"
+          title="Adjust tracked time"
+          aria-label={`Adjust tracked time for ${panel.name}`}
+        >
+          <PencilIcon className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-600" />
+          <span className="text-sm font-mono font-semibold text-slate-600 tabular-nums">{panel.time}</span>
+        </button>
+      ) : (
+        <span className="text-sm font-mono font-semibold text-slate-600 tabular-nums shrink-0">{panel.time}</span>
+      )}
     </div>
     <div className="flex flex-wrap gap-1.5 pl-4">
       {OUTCOME_OPTIONS.map(opt => {
@@ -336,7 +361,7 @@ const DesktopPanelCard: React.FC<{ panel: PanelData } & PanelCardHandlers> = ({
 );
 
 const MobilePanelCard: React.FC<{ panel: PanelData } & PanelCardHandlers> = ({
-  panel, toggleIncluded, setOutcome, updateFollowUp, updateBlocker, setUnrealizedEffort,
+  panel, toggleIncluded, setOutcome, updateFollowUp, updateBlocker, setUnrealizedEffort, onAdjustTime,
 }) => (
   <div className={`bg-white rounded-xl border ${cardBorderClass(panel.outcome)} p-3.5 space-y-2.5`}>
     <div className="flex items-center gap-2.5">
@@ -351,7 +376,22 @@ const MobilePanelCard: React.FC<{ panel: PanelData } & PanelCardHandlers> = ({
             {panel.included ? 'Incl.' : 'Excl.'}
           </button>
         </div>
-        <p className="text-[10px] text-slate-400">{panel.subtitle} · {panel.time}</p>
+        <p className="text-[10px] text-slate-400">
+          {panel.subtitle} ·{' '}
+          {onAdjustTime ? (
+            <button
+              type="button"
+              onClick={() => onAdjustTime(panel.id)}
+              className="inline-flex items-center gap-1 align-baseline text-slate-500 hover:text-slate-700 underline decoration-dotted underline-offset-2"
+              aria-label={`Adjust tracked time for ${panel.name}`}
+            >
+              {panel.time}
+              <PencilIcon className="w-3 h-3" />
+            </button>
+          ) : (
+            <span>{panel.time}</span>
+          )}
+        </p>
       </div>
     </div>
     <div className="flex flex-wrap gap-1 pl-3.5">
@@ -778,8 +818,13 @@ export const PrepareSummaryScreen: React.FC = () => {
   );
 
   // Bundle the card handlers once so we can spread them into the cards.
+  // `onAdjustTime` is only wired for today's reports — see the
+  // PanelCardHandlers definition for why historical days opt out.
   const cardHandlers: PanelCardHandlers = {
     toggleIncluded, setOutcome, updateFollowUp, updateBlocker, setUnrealizedEffort,
+    onAdjustTime: isHistorical
+      ? undefined
+      : (id: string) => navigate('panel', { panelId: id }),
   };
 
   // ---- Generate: snapshot + navigate ----
