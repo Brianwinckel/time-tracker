@@ -472,18 +472,21 @@ export const PrepareSummaryScreen: React.FC = () => {
   // find every unique panelId that has a run on that day, then look up
   // the matching Panel instance. Panels deleted since then won't appear
   // in the workstream editor, but their time still shows in the timeline.
+  //
+  // Attribution rule: a run belongs to the day it STARTED on. Open
+  // runs are also skipped on historical days. See SummaryArchiveScreen
+  // dayRuns for the full rationale (stale auto-closed runs would
+  // otherwise leak across every day they technically span).
   const historicalPanels: Panel[] = useMemo(() => {
     if (!reportDate) return [];
     const [y, mo, d] = reportDate.split('-').map(Number);
     const dayStart = new Date(y, mo - 1, d, 0, 0, 0, 0).getTime();
     const dayEnd = new Date(y, mo - 1, d, 23, 59, 59, 999).getTime();
     const panelIds = new Set<string>();
-    const nowMs = Date.now();
     for (const r of runs) {
-      const end = r.endedAt ?? nowMs;
-      if (end > dayStart && r.startedAt < dayEnd) {
-        panelIds.add(r.panelId);
-      }
+      if (r.endedAt === null) continue;
+      if (r.startedAt < dayStart || r.startedAt > dayEnd) continue;
+      panelIds.add(r.panelId);
     }
     // Filter to real panel instances (not sentinels like __break__).
     return allPanels.filter(p => panelIds.has(p.id));
@@ -499,12 +502,11 @@ export const PrepareSummaryScreen: React.FC = () => {
     const dayStart = new Date(t.getFullYear(), t.getMonth(), t.getDate()).getTime();
     const dayEnd = new Date(t.getFullYear(), t.getMonth(), t.getDate(), 23, 59, 59, 999).getTime();
     const panelIds = new Set<string>();
-    const nowMs = Date.now();
     for (const r of runs) {
-      const end = r.endedAt ?? nowMs;
-      if (end > dayStart && r.startedAt < dayEnd) {
-        panelIds.add(r.panelId);
-      }
+      // Same start-day attribution as the archive view; open runs only
+      // belong to today.
+      if (r.startedAt < dayStart || r.startedAt > dayEnd) continue;
+      panelIds.add(r.panelId);
     }
     // Include the currently-active panel even if its in-flight run hasn't
     // been banked yet (e.g. user opens Prepare Summary while a timer is live).
@@ -513,14 +515,12 @@ export const PrepareSummaryScreen: React.FC = () => {
   }, [runs, allPanels, activeTimer]);
 
   // Live Panel instances from the day (both still-running and marked done
-  // by "End My Day"). These drive the workstream list on this screen.
-  const livePanels: Panel[] = useMemo(
+  // by "End My Day"). The raw list still contains commute panels —
+  // `livePanels` below filters them out when the user opts to exclude
+  // commute from the report.
+  const rawLivePanels: Panel[] = useMemo(
     () => isHistorical ? historicalPanels : todayPanels,
     [isHistorical, historicalPanels, todayPanels],
-  );
-  const activePanelIds = useMemo(
-    () => livePanels.map(p => p.id),
-    [livePanels],
   );
   const goHome = () => {
     // Clear the pending date so going back doesn't leave stale state.
@@ -530,6 +530,32 @@ export const PrepareSummaryScreen: React.FC = () => {
   // ---- Local state ----
   const [audience, setAudience] = useState<Audience>(preferences.defaultAudience);
   const [summaryStyle, setSummaryStyle] = useState<SummaryStyle>(preferences.defaultSummaryStyle);
+  // Default OFF: commute time is tracked personally but kept out of the
+  // shared/manager-facing report. The user can flip this on if they
+  // explicitly want commute in the output.
+  const [includeCommute, setIncludeCommute] = useState<boolean>(false);
+  const hasCommutePanel = useMemo(
+    () => rawLivePanels.some(p => p.kind === 'commute'),
+    [rawLivePanels],
+  );
+  // Drive the workstream list, totals, and report payload off this list.
+  // When `includeCommute` is false, commute panels (and downstream their
+  // runs) are stripped from the report.
+  const livePanels: Panel[] = useMemo(
+    () => includeCommute ? rawLivePanels : rawLivePanels.filter(p => p.kind !== 'commute'),
+    [rawLivePanels, includeCommute],
+  );
+  const activePanelIds = useMemo(
+    () => livePanels.map(p => p.id),
+    [livePanels],
+  );
+  // Panel ids classified as commute — used to scrub commute runs from
+  // `runsSnapshot` defensively (an orphan commute run could otherwise
+  // leak into the timeline if its parent panel was deleted).
+  const commutePanelIds = useMemo(
+    () => new Set(allPanels.filter(p => p.kind === 'commute').map(p => p.id)),
+    [allPanels],
+  );
   // Default to 'today' — the common case is a daily wrap-up. Any other
   // preset routes to the Performance Review view; there is no separate
   // Report Type toggle anymore.
@@ -582,19 +608,18 @@ export const PrepareSummaryScreen: React.FC = () => {
   // ---- Derive panel data from the real session ----
   // For historical days, accumulate from the runs log clipped to that day
   // rather than from panelAccum (which is all-time and today-biased).
+  // Same start-day attribution as historicalPanels above.
   const historicalAccum: Record<string, number> = useMemo(() => {
     if (!reportDate) return {};
     const [y, mo, d] = reportDate.split('-').map(Number);
     const dayStart = new Date(y, mo - 1, d, 0, 0, 0, 0).getTime();
     const dayEnd = new Date(y, mo - 1, d, 23, 59, 59, 999).getTime();
     const acc: Record<string, number> = {};
-    const nowMs = Date.now();
     for (const r of runs) {
-      const rEnd = r.endedAt ?? nowMs;
-      if (rEnd <= dayStart || r.startedAt >= dayEnd) continue;
-      const s = Math.max(r.startedAt, dayStart);
-      const e = Math.min(rEnd, dayEnd);
-      acc[r.panelId] = (acc[r.panelId] ?? 0) + (e - s);
+      if (r.endedAt === null) continue;
+      if (r.startedAt < dayStart || r.startedAt > dayEnd) continue;
+      const e = Math.min(r.endedAt, dayEnd);
+      acc[r.panelId] = (acc[r.panelId] ?? 0) + (e - r.startedAt);
     }
     return acc;
   }, [reportDate, runs]);
@@ -841,17 +866,22 @@ export const PrepareSummaryScreen: React.FC = () => {
       .map(s => s.id as SourceId)
       .filter(id => id === 'taskpanels' || id === 'claude' || id === 'browser');
 
-    // Snapshot runs for the timeline. Close any still-open run at
-    // `now` so the in-flight session shows up on the report instead
-    // of vanishing into accum-only. The underlying runs[] state is
-    // untouched — this is a frozen view for summary generation, and
-    // the summary model requires all runs to have a concrete endedAt.
-    const runsSnapshot: RunSegment[] = runs.map(r => ({
-      id: r.id,
-      panelId: r.panelId,
-      startedAt: r.startedAt,
-      endedAt: r.endedAt ?? now.getTime(),
-    }));
+    // Snapshot runs for the timeline. For TODAY's report, close any
+    // still-open run at `now` so the in-flight session shows up. For
+    // a HISTORICAL report (a past day chosen via Archive), drop open
+    // runs entirely — coercing endedAt to `now` would project an
+    // unrelated in-flight timer back across the historical window.
+    // When commute is excluded, also drop any run that points at a
+    // commute panel so the timeline/stats/narrative don't surface it.
+    const runsSnapshot: RunSegment[] = runs
+      .filter(r => !isHistorical || r.endedAt !== null)
+      .filter(r => includeCommute || !commutePanelIds.has(r.panelId))
+      .map(r => ({
+        id: r.id,
+        panelId: r.panelId,
+        startedAt: r.startedAt,
+        endedAt: r.endedAt ?? now.getTime(),
+      }));
 
     const input = buildSummaryInput({
       reportKind: (isDaily ? 'daily' : 'performance') as ReportKind,
@@ -1110,6 +1140,26 @@ export const PrepareSummaryScreen: React.FC = () => {
               </div>
             </div>
 
+            {/* ═══ Commute toggle ═══
+                Only surfaces when the day actually has a commute panel —
+                the toggle is irrelevant otherwise and would just add noise. */}
+            {hasCommutePanel && (
+              <label className="flex items-start gap-3 p-4 rounded-xl border border-slate-200 bg-slate-50 cursor-pointer hover:bg-slate-100">
+                <input
+                  type="checkbox"
+                  checked={includeCommute}
+                  onChange={e => setIncludeCommute(e.target.checked)}
+                  className="mt-0.5 w-4 h-4 rounded border-slate-300 text-slate-900 focus:ring-slate-900"
+                />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-slate-900">Include commute in report</p>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Off by default — commute time stays in your personal log but is stripped from the shared report's stats, timeline, and narrative.
+                  </p>
+                </div>
+              </label>
+            )}
+
             {/* ═══ Generate Actions ═══ */}
             <div className="flex items-center gap-3 pt-2 pb-4">
               <button onClick={generate} className="flex-1 h-14 bg-slate-900 text-white font-semibold rounded-2xl hover:bg-slate-800 transition-colors flex items-center justify-center gap-2.5 text-base">
@@ -1337,6 +1387,24 @@ export const PrepareSummaryScreen: React.FC = () => {
               ))}
             </div>
           </div>
+
+          {/* Commute toggle (mobile) */}
+          {hasCommutePanel && (
+            <label className="flex items-start gap-2.5 p-3 rounded-xl border border-slate-200 bg-slate-50">
+              <input
+                type="checkbox"
+                checked={includeCommute}
+                onChange={e => setIncludeCommute(e.target.checked)}
+                className="mt-0.5 w-4 h-4 rounded border-slate-300 text-slate-900 focus:ring-slate-900"
+              />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-slate-900">Include commute in report</p>
+                <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
+                  Off by default — commute stays in your personal log but is stripped from the shared report.
+                </p>
+              </div>
+            </label>
+          )}
 
           <div className="h-2" />
         </div>

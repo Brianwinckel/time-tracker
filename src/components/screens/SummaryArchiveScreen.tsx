@@ -104,22 +104,41 @@ export const SummaryArchiveScreen: React.FC<SummaryArchiveScreenProps> = ({ embe
     [savedForDay],
   );
 
-  // Runs that fall inside the selected day. Clipped to the local
-  // 00:00–23:59 window so a run that straddles midnight doesn't
-  // leak hours into the wrong day.
+  // Runs attributed to the selected day. A run "belongs" to the day it
+  // STARTED on — even if its endedAt crosses midnight. This single
+  // invariant prevents two bug classes:
+  //
+  //   1. Stale open runs from N days ago: the auto-close sets endedAt
+  //      to today's midnight while leaving startedAt where it was, so
+  //      the run is technically a 30-day closed segment. The old
+  //      "endedAt > startMs && startedAt < endMs" filter let that
+  //      segment show on every day in between, clipped to a full 24h
+  //      block per day — totals ballooned past 24h and a phantom
+  //      "12:00 AM – 11:59 PM" row appeared on each.
+  //   2. In-flight open runs (endedAt === null): on today they show
+  //      live to nowMs; on past days they're skipped entirely.
+  //
+  // Trade-off: a midnight-straddling run (e.g. 11:30pm Mon → 1:00am
+  // Tue) now appears only on Monday, clipped to 11:30pm–11:59pm. The
+  // half-hour after midnight is dropped rather than getting credited
+  // to Tuesday. That's the right default — true overnight sessions
+  // are rare, and the user can split the run manually if needed.
   const dayRuns = useMemo(() => {
     const startMs = startOfDay(selectedIso).getTime();
     const endMs = endOfDay(selectedIso).getTime();
     const nowMs = Date.now();
     return runs
-      .filter(r => (r.endedAt ?? nowMs) > startMs && r.startedAt < endMs)
+      .filter(r => {
+        if (r.startedAt < startMs || r.startedAt > endMs) return false;
+        if (r.endedAt === null) return isToday;
+        return true;
+      })
       .map(r => ({
         ...r,
-        startedAt: Math.max(r.startedAt, startMs),
         endedAt: Math.min(r.endedAt ?? nowMs, endMs),
       }))
       .sort((a, b) => a.startedAt - b.startedAt);
-  }, [runs, selectedIso]);
+  }, [runs, selectedIso, isToday]);
 
   // panelId → { name, barClass } lookup built from live panel
   // instances. Historical runs that point at a deleted instance
